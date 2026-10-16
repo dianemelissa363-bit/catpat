@@ -1,94 +1,189 @@
-package com.example.catpet
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.provider.Settings
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-class MainActivity : Activity() {
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:text="@string/app_name"
+            android:textSize="22sp"
+            android:textStyle="bold" />
 
-    private lateinit var tvStatus: TextView
-    private lateinit var btnStart: Button
-    private lateinit var btnStop: Button
+        <!-- 今日待办统计占位卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@color/ic_launcher_background"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/entry_todo"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-        tvStatus = findViewById(R.id.tvStatus)
-        btnStart = findViewById(R.id.btnStart)
-        btnStop = findViewById(R.id.btnStop)
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/card_todo_placeholder"
+                android:textSize="14sp" />
+        </LinearLayout>
 
-        btnStart.setOnClickListener {
-            if (!canDrawOverlays()) {
-                requestOverlayPermission()
-            } else {
-                startPet()
-            }
-        }
+        <!-- 定时提醒状态占位卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@color/ic_launcher_background"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-        btnStop.setOnClickListener {
-            stopPet()
-        }
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/entry_reminder"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-        // Android 13+ 需要通知权限，前台服务的常驻通知才可见
-        requestNotificationPermissionIfNeeded()
-    }
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/card_reminder_placeholder"
+                android:textSize="14sp" />
+        </LinearLayout>
 
-    override fun onResume() {
-        super.onResume()
-        // 从系统设置授权回来时刷新状态提示
-        tvStatus.text = if (canDrawOverlays()) {
-            getString(R.string.status_ready)
-        } else {
-            getString(R.string.status_no_permission)
-        }
-    }
+        <!-- 小猫控制卡片 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@color/ic_launcher_background"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-    private fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(this)
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/cat_card_title"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-    private fun requestOverlayPermission() {
-        startActivity(
-            Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-        )
-        Toast.makeText(this, R.string.toast_grant_overlay, Toast.LENGTH_LONG).show()
-    }
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/status_ready"
+                android:textSize="14sp" />
 
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-            if (!granted) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
-            }
-        }
-    }
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
 
-    private fun startPet() {
-        val intent = Intent(this, FloatingPetService::class.java)
-            .setAction(FloatingPetService.ACTION_START)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        tvStatus.setText(R.string.status_running)
-    }
+                <Button
+                    android:id="@+id/btnStart"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/btn_start" />
 
-    private fun stopPet() {
-        val intent = Intent(this, FloatingPetService::class.java)
-            .setAction(FloatingPetService.ACTION_STOP)
-        startService(intent)
-        tvStatus.setText(R.string.status_idle)
-    }
-}
+                <Button
+                    android:id="@+id/btnStop"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_stop" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 六入口：第 1 行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnTodo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/entry_todo" />
+
+            <Button
+                android:id="@+id/btnReminder"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/entry_reminder" />
+        </LinearLayout>
+
+        <!-- 六入口：第 2 行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnAi"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/entry_ai" />
+
+            <Button
+                android:id="@+id/btnNotes"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/entry_notes" />
+        </LinearLayout>
+
+        <!-- 六入口：第 3 行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnGithub"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/entry_github" />
+
+            <Button
+                android:id="@+id/btnSettings"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/entry_settings" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
