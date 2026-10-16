@@ -1,0 +1,18 @@
+
+<resources>
+    <string name="app_name">桌面小猫</string>
+
+    <string name="btn_start">启动小猫</string>
+    <string name="btn_stop">停止小猫</string>
+
+    <string name="status_ready">点「启动小猫」，让小猫出来陪你</string>
+    <string name="status_no_permission">需要先授予「悬浮窗」权限</string>
+    <string name="status_running">小猫正在桌面上陪你</string>
+    <string name="status_idle">小猫已经回家啦</string>
+
+    <string name="toast_grant_overlay">请在系统设置里允许「显示在其他应用上层」</string>
+
+    <string name="notification_title">桌面小猫</string>
+    <string name="notification_text">小猫正在桌面上陪你</string>
+    <string name="notification_channel">小猫服务</string>
+</resources>
