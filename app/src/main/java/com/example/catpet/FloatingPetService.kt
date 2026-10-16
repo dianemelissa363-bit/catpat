@@ -18,6 +18,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.OvershootInterpolator
 import android.widget.TextView
+import kotlin.jvm.Volatile
 
 class FloatingPetService : Service() {
 
@@ -26,6 +27,10 @@ class FloatingPetService : Service() {
         const val ACTION_STOP = "com.example.catpet.action.STOP"
         private const val CHANNEL_ID = "pet_service"
         private const val NOTIFICATION_ID = 1
+
+        // 供 MainActivity 读取的运行状态（进程内共享，Activity 重建后仍保留）
+        @Volatile var isRunning = false
+        @Volatile var everStarted = false
     }
 
     private var windowManager: WindowManager? = null
@@ -98,7 +103,8 @@ class FloatingPetService : Service() {
     private fun showPet() {
         if (petView != null) return
 
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        windowManager = wm
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -118,11 +124,34 @@ class FloatingPetService : Service() {
             setOnTouchListener { _, event -> handleTouch(event) }
         }
 
-        windowManager?.addView(view, params)
+        try {
+            wm.addView(view, params)
+        } catch (e: SecurityException) {
+            // 悬浮窗权限被撤销/未授予：清理引用，保持未运行
+            petView = null
+            layoutParams = null
+            windowManager = null
+            isRunning = false
+            return
+        } catch (e: WindowManager.BadTokenException) {
+            // 窗口 token 无效：清理引用，保持未运行
+            petView = null
+            layoutParams = null
+            windowManager = null
+            isRunning = false
+            return
+        }
+
         petView = view
         layoutParams = params
+        isRunning = true
+        everStarted = true
 
-        startIdleAnimation(view)
+        try {
+            startIdleAnimation(view)
+        } catch (e: Exception) {
+            // 动画失败不影响显示：视图已成功添加，isRunning 保持 true 是正确的
+        }
     }
 
     private fun hidePet() {
@@ -131,13 +160,14 @@ class FloatingPetService : Service() {
         petView?.let { v ->
             try {
                 windowManager?.removeView(v)
-            } catch (e: Exception) {
+                 } catch (e: Exception) {
                 // 窗口可能已被移除，忽略
             }
         }
         petView = null
         layoutParams = null
         windowManager = null
+        isRunning = false
     }
 
     // ---------- 触摸：区分点击和拖动 ----------
@@ -156,7 +186,7 @@ class FloatingPetService : Service() {
                 val dx = event.rawX - downX
                 val dy = event.rawY - downY
                 val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
-                                if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
+                if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                     isDragging = true
                 }
                 if (isDragging) {
