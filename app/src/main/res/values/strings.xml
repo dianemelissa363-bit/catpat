@@ -1,9 +1,8 @@
-
 <resources>
     <string name="app_name">桌面小猫</string>
 
     <string name="btn_start">启动小猫</string>
-    <string name="btn_stop">停止小猫</string>
+    <string name="btn_stop">隐藏小猫</string>
 
     <string name="status_ready">点「启动小猫」，让小猫出来陪你</string>
     <string name="status_no_permission">需要先授予「悬浮窗」权限</string>
@@ -15,4 +14,17 @@
     <string name="notification_title">桌面小猫</string>
     <string name="notification_text">小猫正在桌面上陪你</string>
     <string name="notification_channel">小猫服务</string>
+
+    <string name="cat_card_title">小猫</string>
+    <string name="card_todo_placeholder">统计功能待开发</string>
+    <string name="card_reminder_placeholder">提醒功能待开发</string>
+
+    <string name="entry_todo">今日待办</string>
+    <string name="entry_reminder">定时提醒</string>
+    <string name="entry_ai">AI 工具箱</string>
+    <string name="entry_notes">快速记事</string>
+    <string name="entry_github">GitHub</string>
+    <string name="entry_settings">项目设置</string>
+
+    <string name="toast_coming_soon">该功能即将上线</string>
 </resources>
