@@ -155,5 +155,59 @@ class FloatingPetService : Service() {
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.rawX - downX
                 val dy = event.rawY - downY
-                val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-              
+                val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+                                if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
+                    isDragging = true
+                }
+                if (isDragging) {
+                    params.x = startX + dx.toInt()
+                    params.y = startY + dy.toInt()
+                    try {
+                        windowManager?.updateViewLayout(petView, params)
+                    } catch (e: Exception) {
+                        // 忽略
+                    }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!isDragging) {
+                    onPetTapped()
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    // ---------- 点击互动 ----------
+    private fun onPetTapped() {
+        petView?.let { v ->
+            v.text = "\uD83D\uDE38"   // 😸
+            v.animate()
+                .scaleX(1.3f)
+                .scaleY(1.3f)
+                .setDuration(150)
+                .setInterpolator(OvershootInterpolator())
+                .withEndAction {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(200).start()
+                    v.text = "\uD83D\uDC31"   // 🐱
+                }
+                .start()
+        }
+    }
+
+    // ---------- 待机漂浮动画 ----------
+    private fun startIdleAnimation(view: View) {
+        floatAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1600
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                view.translationY = (fraction - 0.5f) * 30f
+            }
+            start()
+        }
+    }
+}
