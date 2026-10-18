@@ -21,9 +21,8 @@ class MainActivity : Activity() {
         private const val CHATGPT_URL = "https://chatgpt.com/"
         private const val GEMINI_PACKAGE = "com.google.android.apps.bard"
         private const val GEMINI_URL = "https://gemini.google.com/"
-        // DSHBox：包名来自其 app/build.gradle.kts 的 applicationId（已核对）
-        private const val DSHBOX_PACKAGE = "com.dshbox.app"
-        private const val DSHBOX_URL = "https://github.com/WSK-build/DSHBox/"
+        // DSH：本机实际包名（com.dshbox.app 未安装；失败只提示，不跳 GitHub）
+        private const val DSH_PACKAGE = "com.dsharnessmobile.shell"
     }
 
     private lateinit var tvStatus: TextView
@@ -93,7 +92,7 @@ class MainActivity : Activity() {
                 when (which) {
                     0 -> openAiTool(CHATGPT_PACKAGE, CHATGPT_URL)
                     1 -> openAiTool(GEMINI_PACKAGE, GEMINI_URL)
-                    2 -> openAiTool(DSHBOX_PACKAGE, DSHBOX_URL)
+                    2 -> openDsh()
                 }
             }
             .show()
@@ -111,6 +110,24 @@ class MainActivity : Activity() {
             }
         }
         openUrl(webUrl)
+    }
+
+    // DSH：只尝试启动本机应用；失败给清晰提示，不回退 GitHub
+    private fun openDsh() {
+        val launchIntent = packageManager.getLaunchIntentForPackage(DSH_PACKAGE)
+        if (launchIntent != null) {
+            try {
+                startActivity(launchIntent)
+                return
+            } catch (e: Exception) {
+                // 启动失败，走下面的提示
+            }
+        }
+        Toast.makeText(
+            this,
+            getString(R.string.toast_app_unavailable, getString(R.string.ai_dshbox)),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun openUrl(url: String) {
