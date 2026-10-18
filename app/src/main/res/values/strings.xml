@@ -31,6 +31,7 @@
     <string name="ai_tools_title">选择 AI 工具</string>
     <string name="ai_chatgpt">ChatGPT</string>
     <string name="ai_gemini">Gemini</string>
-    <string name="ai_dshbox">DSHBox</string>
+    <string name="ai_dshbox">DSH</string>
     <string name="toast_open_failed">无法打开，请稍后重试</string>
+    <string name="toast_app_unavailable">未安装或无法打开：%1$s</string>
 </resources>
