@@ -1,4 +1,4 @@
-resources>
+<resources>
     <string name="app_name">桌面小猫</string>
 
     <string name="btn_start">启动小猫</string>
