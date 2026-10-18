@@ -2,6 +2,7 @@ package com.example.catpet
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -13,6 +14,17 @@ import android.widget.TextView
 import android.widget.Toast
 
 class MainActivity : Activity() {
+
+    companion object {
+        // AI 应用包名与网页地址（包名不符/未安装时自动回退网页）
+        private const val CHATGPT_PACKAGE = "com.openai.chatgpt"
+        private const val CHATGPT_URL = "https://chatgpt.com/"
+        private const val GEMINI_PACKAGE = "com.google.android.apps.bard"
+        private const val GEMINI_URL = "https://gemini.google.com/"
+        // DSHBox：包名来自其 app/build.gradle.kts 的 applicationId（已核对）
+        private const val DSHBOX_PACKAGE = "com.dshbox.app"
+        private const val DSHBOX_URL = "https://github.com/WSK-build/DSHBox/"
+    }
 
     private lateinit var tvStatus: TextView
     private lateinit var btnStart: Button
@@ -38,12 +50,12 @@ class MainActivity : Activity() {
             stopPet()
         }
 
-        // 六个入口：本阶段只显示占位提示，不实现业务
+        // 六个入口：AI 工具箱/GitHub 已实现，其余仍为占位
         findViewById<Button>(R.id.btnTodo).setOnClickListener { showComingSoon() }
         findViewById<Button>(R.id.btnReminder).setOnClickListener { showComingSoon() }
-        findViewById<Button>(R.id.btnAi).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnAi).setOnClickListener { showAiToolsMenu() }
         findViewById<Button>(R.id.btnNotes).setOnClickListener { showComingSoon() }
-        findViewById<Button>(R.id.btnGithub).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnGithub).setOnClickListener { openUrl("https://github.com/") }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showComingSoon() }
 
         // Android 13+ 需要通知权限，前台服务的常驻通知才可见
@@ -67,6 +79,46 @@ class MainActivity : Activity() {
 
     private fun showComingSoon() {
         Toast.makeText(this, R.string.toast_coming_soon, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showAiToolsMenu() {
+        val options = arrayOf(
+            getString(R.string.ai_chatgpt),
+            getString(R.string.ai_gemini),
+            getString(R.string.ai_dshbox)
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.ai_tools_title)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> openAiTool(CHATGPT_PACKAGE, CHATGPT_URL)
+                    1 -> openAiTool(GEMINI_PACKAGE, GEMINI_URL)
+                    2 -> openAiTool(DSHBOX_PACKAGE, DSHBOX_URL)
+                }
+            }
+            .show()
+    }
+
+    private fun openAiTool(packageName: String, webUrl: String) {
+        // 先尝试打开已安装的应用；未安装或启动失败则用浏览器打开网页
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent != null) {
+            try {
+                startActivity(launchIntent)
+                return
+            } catch (e: Exception) {
+                // 启动失败，回退到网页
+            }
+        }
+        openUrl(webUrl)
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.toast_open_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(this)
