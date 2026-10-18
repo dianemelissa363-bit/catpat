@@ -1,4 +1,4 @@
-<resources>
+resources>
     <string name="app_name">桌面小猫</string>
 
     <string name="btn_start">启动小猫</string>
@@ -27,4 +27,10 @@
     <string name="entry_settings">项目设置</string>
 
     <string name="toast_coming_soon">该功能即将上线</string>
+
+    <string name="ai_tools_title">选择 AI 工具</string>
+    <string name="ai_chatgpt">ChatGPT</string>
+    <string name="ai_gemini">Gemini</string>
+    <string name="ai_dshbox">DSHBox</string>
+    <string name="toast_open_failed">无法打开，请稍后重试</string>
 </resources>
