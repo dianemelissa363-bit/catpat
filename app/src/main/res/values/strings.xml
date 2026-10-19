@@ -17,6 +17,9 @@
 
     <string name="cat_card_title">小猫</string>
     <string name="card_todo_placeholder">统计功能待开发</string>
+    <string name="todo_empty">暂无待办记录</string>
+    <string name="todo_item_title">截图待办 #%1$d</string>
+    <string name="todo_item_time">添加时间：%1$s</string>
     <string name="card_reminder_placeholder">提醒功能待开发</string>
 
     <string name="entry_todo">今日待办</string>
