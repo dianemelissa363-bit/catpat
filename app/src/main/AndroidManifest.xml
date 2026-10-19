@@ -29,6 +29,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".QuickNotesActivity"
+            android:exported="false" />
+
         <service
             android:name=".FloatingPetService"
             android:exported="false"

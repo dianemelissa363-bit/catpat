@@ -12,7 +12,6 @@ import android.view.View
 import android.provider.Settings
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
@@ -62,10 +61,10 @@ class MainActivity : Activity() {
         }
 
         // 六个入口：AI 工具箱/GitHub 已实现，其余仍为占位
-        findViewById<Button>(R.id.btnTodo).setOnClickListener { scrollToTodoCard() }
+        findViewById<Button>(R.id.btnTodo).setOnClickListener { openQuickNotes() }
         findViewById<Button>(R.id.btnReminder).setOnClickListener { showComingSoon() }
         findViewById<Button>(R.id.btnAi).setOnClickListener { showAiToolsMenu() }
-        findViewById<Button>(R.id.btnNotes).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnNotes).setOnClickListener { openQuickNotes() }
         findViewById<Button>(R.id.btnGithub).setOnClickListener { openUrl("https://github.com/") }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showComingSoon() }
 
@@ -124,10 +123,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun scrollToTodoCard() {
-        val scrollView = findViewById<ScrollView>(R.id.mainScrollView)
-        val todoCard = findViewById<View>(R.id.todoCard)
-        scrollView.post { scrollView.smoothScrollTo(0, todoCard.top) }
+    private fun openQuickNotes() {
+        startActivity(Intent(this, QuickNotesActivity::class.java))
     }
 
     private fun dp(value: Int): Int =

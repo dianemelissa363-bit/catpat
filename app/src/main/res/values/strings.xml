@@ -22,10 +22,14 @@
     <string name="todo_item_time">添加时间：%1$s</string>
     <string name="card_reminder_placeholder">提醒功能待开发</string>
 
-    <string name="entry_todo">今日待办</string>
+    <string name="entry_todo">快速记事</string>
     <string name="entry_reminder">定时提醒</string>
     <string name="entry_ai">AI 工具箱</string>
-    <string name="entry_notes">快速记事</string>
+    <string name="entry_notes">完整列表</string>
+
+    <string name="quick_notes_title">快速记事</string>
+    <string name="quick_notes_empty">还没有记录</string>
+    <string name="quick_notes_back">返回</string>
     <string name="entry_github">GitHub</string>
     <string name="entry_settings">项目设置</string>
 
