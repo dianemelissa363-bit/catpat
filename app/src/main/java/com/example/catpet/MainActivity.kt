@@ -8,10 +8,16 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.provider.Settings
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -28,6 +34,9 @@ class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var todoListContainer: LinearLayout
+    private lateinit var tvTodoEmpty: TextView
+    private lateinit var screenshotStore: ScreenshotStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +45,9 @@ class MainActivity : Activity() {
         tvStatus = findViewById(R.id.tvStatus)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        todoListContainer = findViewById(R.id.todoListContainer)
+        tvTodoEmpty = findViewById(R.id.tvTodoEmpty)
+        screenshotStore = ScreenshotStore(this)
 
         btnStart.setOnClickListener {
             if (!canDrawOverlays()) {
@@ -50,7 +62,7 @@ class MainActivity : Activity() {
         }
 
         // 六个入口：AI 工具箱/GitHub 已实现，其余仍为占位
-        findViewById<Button>(R.id.btnTodo).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnTodo).setOnClickListener { scrollToTodoCard() }
         findViewById<Button>(R.id.btnReminder).setOnClickListener { showComingSoon() }
         findViewById<Button>(R.id.btnAi).setOnClickListener { showAiToolsMenu() }
         findViewById<Button>(R.id.btnNotes).setOnClickListener { showComingSoon() }
@@ -65,6 +77,7 @@ class MainActivity : Activity() {
         super.onResume()
         // 返回首页时，用服务的真实状态刷新（而非本地内存变量）
         refreshStatus()
+        renderTodoItems()
     }
 
     private fun refreshStatus() {
@@ -75,6 +88,50 @@ class MainActivity : Activity() {
             else -> getString(R.string.status_ready)  // 已授权且未启动
         }
     }
+
+
+    private fun renderTodoItems() {
+        val items = screenshotStore.load().sortedByDescending { it.addedAt }
+        todoListContainer.removeAllViews()
+
+        if (items.isEmpty()) {
+            tvTodoEmpty.visibility = View.VISIBLE
+            todoListContainer.visibility = View.GONE
+            return
+        }
+
+        tvTodoEmpty.visibility = View.GONE
+        todoListContainer.visibility = View.VISIBLE
+
+        val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+        items.forEach { item ->
+            val row = TextView(this).apply {
+                text = getString(R.string.todo_item_title, item.mediaId) +
+                    "\n" + getString(
+                        R.string.todo_item_time,
+                        timeFormat.format(Date(item.addedAt))
+                    )
+                textSize = 14f
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                isFocusable = false
+            }
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            params.bottomMargin = dp(6)
+            todoListContainer.addView(row, params)
+        }
+    }
+
+    private fun scrollToTodoCard() {
+        val scrollView = findViewById<ScrollView>(R.id.mainScrollView)
+        val todoCard = findViewById<View>(R.id.todoCard)
+        scrollView.post { scrollView.smoothScrollTo(0, todoCard.top) }
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     private fun showComingSoon() {
         Toast.makeText(this, R.string.toast_coming_soon, Toast.LENGTH_SHORT).show()
