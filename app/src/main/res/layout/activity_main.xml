@@ -34,7 +34,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/entry_todo"
+                android:text="@string/todo_card_title"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -43,7 +43,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="@string/todo_empty"
+                android:text="@string/todo_empty_task"
                 android:textSize="14sp" />
 
             <LinearLayout

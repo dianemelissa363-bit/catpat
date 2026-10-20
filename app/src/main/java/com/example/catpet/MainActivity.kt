@@ -14,9 +14,6 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -35,7 +32,7 @@ class MainActivity : Activity() {
     private lateinit var btnStop: Button
     private lateinit var todoListContainer: LinearLayout
     private lateinit var tvTodoEmpty: TextView
-    private lateinit var screenshotStore: ScreenshotStore
+    private lateinit var todoTaskStore: TodoTaskStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +43,7 @@ class MainActivity : Activity() {
         btnStop = findViewById(R.id.btnStop)
         todoListContainer = findViewById(R.id.todoListContainer)
         tvTodoEmpty = findViewById(R.id.tvTodoEmpty)
-        screenshotStore = ScreenshotStore(this)
+        todoTaskStore = TodoTaskStore(this)
 
         btnStart.setOnClickListener {
             if (!canDrawOverlays()) {
@@ -64,7 +61,7 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btnTodo).setOnClickListener { openQuickNotes() }
         findViewById<Button>(R.id.btnReminder).setOnClickListener { showComingSoon() }
         findViewById<Button>(R.id.btnAi).setOnClickListener { showAiToolsMenu() }
-        findViewById<Button>(R.id.btnNotes).setOnClickListener { openQuickNotes() }
+        findViewById<Button>(R.id.btnNotes).setOnClickListener { openTodoPage() }
         findViewById<Button>(R.id.btnGithub).setOnClickListener { openUrl("https://github.com/") }
         findViewById<Button>(R.id.btnSettings).setOnClickListener { showComingSoon() }
 
@@ -90,10 +87,13 @@ class MainActivity : Activity() {
 
 
     private fun renderTodoItems() {
-        val items = screenshotStore.load().sortedByDescending { it.addedAt }
+        val tasks = todoTaskStore.load()
+            .filter { !it.done }
+            .sortedByDescending { it.updatedAt }
+
         todoListContainer.removeAllViews()
 
-        if (items.isEmpty()) {
+        if (tasks.isEmpty()) {
             tvTodoEmpty.visibility = View.VISIBLE
             todoListContainer.visibility = View.GONE
             return
@@ -102,29 +102,28 @@ class MainActivity : Activity() {
         tvTodoEmpty.visibility = View.GONE
         todoListContainer.visibility = View.VISIBLE
 
-        val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-        items.forEach { item ->
+        tasks.forEach { task ->
             val row = TextView(this).apply {
-                text = getString(R.string.todo_item_title, item.mediaId) +
-                    "\n" + getString(
-                        R.string.todo_item_time,
-                        timeFormat.format(Date(item.addedAt))
-                    )
+                text = "☐ " + task.title
                 textSize = 14f
-                setPadding(dp(12), dp(10), dp(12), dp(10))
+                setPadding(dp(12), dp(8), dp(12), dp(8))
                 isFocusable = false
             }
             val params = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.bottomMargin = dp(6)
+            params.bottomMargin = dp(4)
             todoListContainer.addView(row, params)
         }
     }
 
     private fun openQuickNotes() {
         startActivity(Intent(this, QuickNotesActivity::class.java))
+    }
+
+    private fun openTodoPage() {
+        startActivity(Intent(this, TodoActivity::class.java))
     }
 
     private fun dp(value: Int): Int =

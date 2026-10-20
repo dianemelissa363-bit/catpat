@@ -17,15 +17,15 @@
 
     <string name="cat_card_title">小猫</string>
     <string name="card_todo_placeholder">统计功能待开发</string>
-    <string name="todo_empty">暂无待办记录</string>
+    <string name="todo_empty">暂无待办任务</string>
     <string name="todo_item_title">截图待办 #%1$d</string>
-    <string name="todo_item_time">添加时间：%1$s</string>
+    <string name="todo_item_time">更新于 %1$s</string>
     <string name="card_reminder_placeholder">提醒功能待开发</string>
 
     <string name="entry_todo">快速记事</string>
     <string name="entry_reminder">定时提醒</string>
     <string name="entry_ai">AI 工具箱</string>
-    <string name="entry_notes">完整列表</string>
+    <string name="entry_notes">今日待办</string>
 
     <string name="quick_notes_title">快速记事</string>
     <string name="quick_notes_empty">还没有记录</string>
@@ -41,4 +41,36 @@
     <string name="ai_dshbox">DSH</string>
     <string name="toast_open_failed">无法打开，请稍后重试</string>
     <string name="toast_app_unavailable">未安装或无法打开：%1$s</string>
+
+    <string name="todo_card_title">今日待办</string>
+    <string name="todo_empty_task">暂无待办任务，点「今日待办」添加</string>
+    <string name="quick_notes_new">＋ 新建记录</string>
+    <string name="quick_notes_section_text">文字记录</string>
+    <string name="quick_notes_section_screenshot">截图记录</string>
+    <string name="note_title_hint">标题（必填）</string>
+    <string name="note_body_hint">正文（选填）</string>
+    <string name="note_dialog_new">新建记录</string>
+    <string name="note_dialog_edit">编辑记录</string>
+    <string name="note_delete_title">删除记录</string>
+    <string name="note_delete_confirm">确定删除这条记录吗？</string>
+    <string name="note_delete_confirm_screenshot">确定删除这条截图记录吗？相册原图不会被删除。</string>
+    <string name="note_item_time">更新于 %1$s</string>
+    <string name="screenshot_record_label">📷 截图记录</string>
+    <string name="screenshot_item_time">添加于 %1$s</string>
+    <string name="image_missing">图片已删除或无法打开</string>
+    <string name="todo_page_title">今日待办</string>
+    <string name="todo_new">＋ 新建待办</string>
+    <string name="todo_section_pending">未完成</string>
+    <string name="todo_section_done">已完成</string>
+    <string name="todo_title_hint">标题（必填）</string>
+    <string name="todo_desc_hint">说明（选填）</string>
+    <string name="todo_dialog_new">新建待办</string>
+    <string name="todo_dialog_edit">编辑待办</string>
+    <string name="todo_delete_title">删除待办</string>
+    <string name="todo_delete_confirm">确定删除这条待办吗？</string>
+    <string name="title_required">标题不能为空</string>
+    <string name="save_failed">保存失败，请重试</string>
+    <string name="dialog_ok">确定</string>
+    <string name="dialog_cancel">取消</string>
+    <string name="delete">删除</string>
 </resources>
