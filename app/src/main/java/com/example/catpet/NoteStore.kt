@@ -47,6 +47,7 @@ class NoteStore(context: Context) {
                 }
             }
         } catch (_: Exception) {
+            preferences.edit().putString(KEY_CORRUPT_BACKUP, raw).apply()
             emptyList()
         }
     }
@@ -69,6 +70,7 @@ class NoteStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "quick_note_store"
         private const val KEY_ITEMS = "notes_json"
+        private const val KEY_CORRUPT_BACKUP = "notes_json_corrupt_backup"
         private const val KEY_ID = "id"
         private const val KEY_TITLE = "title"
         private const val KEY_BODY = "body"

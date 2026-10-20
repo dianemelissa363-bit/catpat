@@ -52,6 +52,7 @@ class TodoTaskStore(context: Context) {
                 }
             }
         } catch (_: Exception) {
+            preferences.edit().putString(KEY_CORRUPT_BACKUP, raw).apply()
             emptyList()
         }
     }
@@ -76,6 +77,7 @@ class TodoTaskStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "todo_task_store"
         private const val KEY_ITEMS = "tasks_json"
+        private const val KEY_CORRUPT_BACKUP = "tasks_json_corrupt_backup"
         private const val KEY_ID = "id"
         private const val KEY_TITLE = "title"
         private const val KEY_DESC = "description"
