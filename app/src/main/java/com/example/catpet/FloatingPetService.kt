@@ -290,11 +290,6 @@ class FloatingPetService : Service() {
     // ---------- 边缘收纳 / 打开主界面 ----------
     private val settings by lazy { SettingsStore(this) }
 
-    private fun dockToEdge() {
-        dockToSide(settings.defaultDockSide)
-        hideAiMenu()
-    }
-
     /**
      * Slides the pet window partly outside the given edge. With
      * FLAG_LAYOUT_NO_LIMITS the negative/oversized x is honoured, so only a
@@ -328,24 +323,6 @@ class FloatingPetService : Service() {
         }
     }
 
-    /** Docked tap: slide back to a fully visible position, then open the menu. */
-    private fun undockThenShowMenu() {
-        val params = layoutParams ?: return
-        val pet = petView ?: return
-        val dm = resources.displayMetrics
-        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
-        if (petW <= 0) return
-        val targetX = if (settings.dockSide == SettingsStore.DOCK_LEFT) {
-            0
-        } else {
-            dm.widthPixels - petW
-        }
-        animatePetX(params.x, targetX) {
-            settings.docked = false
-            showAiMenu()
-        }
-    }
-
     /** Keeps the pet inside the visible screen after a drag. */
     private fun clampPetPosition() {
         val params = layoutParams ?: return
@@ -362,18 +339,23 @@ class FloatingPetService : Service() {
         }
     }
 
-    /** Drag release with "auto dock" enabled: tuck into the nearest edge. */
-    private fun snapToNearestEdge() {
+    /**
+     * Only docks when the release point falls inside the left/right trigger
+     * zone. Center / top / bottom releases leave the pet exactly where it is.
+     */
+    private fun dockIfNearEdge() {
         val params = layoutParams ?: return
         val pet = petView ?: return
         val dm = resources.displayMetrics
         val petW = if (pet.width > 0) pet.width else pet.measuredWidth
         if (petW <= 0) return
-        val side = if (params.x + petW / 2 < dm.widthPixels / 2) {
-            SettingsStore.DOCK_LEFT
-        } else {
-            SettingsStore.DOCK_RIGHT
-        }
+        val centerX = params.x + petW / 2
+        val edgeZone = dp(64)
+        val side = when {
+            centerX <= edgeZone -> SettingsStore.DOCK_LEFT
+            centerX >= dm.widthPixels - edgeZone -> SettingsStore.DOCK_RIGHT
+            else -> null
+        } ?: return
         dockToSide(side)
     }
 
@@ -477,7 +459,7 @@ class FloatingPetService : Service() {
                 if (isDragging) {
                     clampPetPosition()
                     if (settings.snapToEdge) {
-                        snapToNearestEdge()
+                        dockIfNearEdge()
                     }
                 } else {
                     onPetTapped()
@@ -491,7 +473,8 @@ class FloatingPetService : Service() {
     // ---------- 点击互动 ----------
     private fun onPetTapped() {
         if (settings.docked) {
-            undockThenShowMenu()
+            // Expand only; a normal click after expanding opens the menu.
+            undock()
             return
         }
         // 弹跳反馈
@@ -543,7 +526,6 @@ class FloatingPetService : Service() {
         ) {
             toggleRecording()
         })
-        menu.addView(makeMenuItem(getString(R.string.menu_dock)) { dockToEdge() })
         menu.addView(makeMenuItem(getString(R.string.menu_open_app)) { openMainApp() })
 
         // 2) 实测菜单与小猫尺寸（不假设固定宽度）
