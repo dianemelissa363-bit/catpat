@@ -91,7 +91,7 @@
     <string name="settings_dock_side">默认停靠位置</string>
     <string name="settings_dock_left">左侧</string>
     <string name="settings_dock_right">右侧</string>
-    <string name="settings_snap_to_edge">拖动结束后自动吸附到屏幕边缘</string>
+    <string name="settings_snap_to_edge">拖动结束后自动收纳到屏幕边缘</string>
     <string name="settings_overlay_granted">悬浮窗权限：已授予</string>
     <string name="settings_overlay_missing">悬浮窗权限：未授予</string>
     <string name="settings_open_overlay_permission">去授权悬浮窗权限</string>

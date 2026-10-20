@@ -133,7 +133,11 @@ class FloatingPetService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            // NO_LIMITS lets the window sit partly outside the screen, otherwise
+            // the system clamps a negative/oversized x back inside and the cat
+            // never actually tucks into the edge.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -287,20 +291,28 @@ class FloatingPetService : Service() {
     private val settings by lazy { SettingsStore(this) }
 
     private fun dockToEdge() {
+        dockToSide(settings.defaultDockSide)
+        hideAiMenu()
+    }
+
+    /**
+     * Slides the pet window partly outside the given edge. With
+     * FLAG_LAYOUT_NO_LIMITS the negative/oversized x is honoured, so only a
+     * small strip stays on screen and remains touchable.
+     */
+    private fun dockToSide(side: String) {
         val params = layoutParams ?: return
         val pet = petView ?: return
         val dm = resources.displayMetrics
         val screenW = dm.widthPixels
         val petW = if (pet.width > 0) pet.width else pet.measuredWidth
         if (petW <= 0) return
-        val side = settings.defaultDockSide
         val strip = dp(28)
         val targetX = if (side == SettingsStore.DOCK_LEFT) strip - petW else screenW - strip
         animatePetX(params.x, targetX) {
             settings.docked = true
             settings.dockSide = side
         }
-        hideAiMenu()
     }
 
     private fun undock() {
@@ -350,16 +362,19 @@ class FloatingPetService : Service() {
         }
     }
 
-    /** Drag release with "snap to edge" enabled. */
+    /** Drag release with "auto dock" enabled: tuck into the nearest edge. */
     private fun snapToNearestEdge() {
         val params = layoutParams ?: return
         val pet = petView ?: return
         val dm = resources.displayMetrics
         val petW = if (pet.width > 0) pet.width else pet.measuredWidth
         if (petW <= 0) return
-        val centerX = params.x + petW / 2
-        val targetX = if (centerX < dm.widthPixels / 2) 0 else dm.widthPixels - petW
-        animatePetX(params.x, targetX) { }
+        val side = if (params.x + petW / 2 < dm.widthPixels / 2) {
+            SettingsStore.DOCK_LEFT
+        } else {
+            SettingsStore.DOCK_RIGHT
+        }
+        dockToSide(side)
     }
 
     private fun animatePetX(from: Int, to: Int, onEnd: () -> Unit) {
