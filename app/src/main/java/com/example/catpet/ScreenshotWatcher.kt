@@ -23,7 +23,8 @@ import android.provider.MediaStore
  */
 class ScreenshotWatcher(
     context: Context,
-    private val onRecorded: (Int) -> Unit
+    private val onRecorded: (Int) -> Unit,
+    private val onError: (String) -> Unit
 ) {
 
     private val appContext = context.applicationContext
@@ -33,15 +34,15 @@ class ScreenshotWatcher(
     private var lastSeenId: Long = 0L
     private var running = false
 
-    fun start() {
-        if (running) return
+    fun start(): Boolean {
+        if (running) return true
         lastSeenId = currentMaxId()
         val obs = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 scanNew()
             }
         }
-        try {
+        return try {
             resolver.registerContentObserver(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 true,
@@ -49,9 +50,16 @@ class ScreenshotWatcher(
             )
             observer = obs
             running = true
+            true
         } catch (_: Exception) {
             stop()
+            false
         }
+    }
+
+    private fun fail(reason: String) {
+        stop()
+        onError(reason)
     }
 
     fun stop() {
@@ -133,8 +141,9 @@ class ScreenshotWatcher(
                 }
             }
         } catch (_: Exception) {
-            // Permission revoked or provider failure: stop collecting safely.
-            stop()
+            // Permission revoked or provider failure: stop collecting and let
+            // the host clear its state instead of silently pretending to work.
+            fail("scan")
             return
         }
 

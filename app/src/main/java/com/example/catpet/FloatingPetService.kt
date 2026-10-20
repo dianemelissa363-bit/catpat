@@ -237,16 +237,35 @@ class FloatingPetService : Service() {
 
     private fun startRecording() {
         if (isRecording) return
-        screenshotWatcher = ScreenshotWatcher(this) { count ->
-            Toast.makeText(this, getString(R.string.record_saved, count), Toast.LENGTH_SHORT).show()
-            petView?.let { v ->
-                v.animate().scaleX(1.2f).scaleY(1.2f).setDuration(150).withEndAction {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
-                }.start()
+        val watcher = ScreenshotWatcher(
+            this,
+            onRecorded = { count ->
+                Toast.makeText(this, getString(R.string.record_saved, count), Toast.LENGTH_SHORT).show()
+                petView?.let { v ->
+                    v.animate().scaleX(1.2f).scaleY(1.2f).setDuration(150).withEndAction {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+                    }.start()
+                }
+            },
+            onError = { _ ->
+                // The observer stopped unexpectedly: report it and make the
+                // stored/UI state match reality instead of showing "on".
+                screenshotWatcher = null
+                isRecording = false
+                recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, false).apply()
+                Toast.makeText(this, R.string.record_stopped, Toast.LENGTH_LONG).show()
             }
-        }.also { it.start() }
-        isRecording = true
-        recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, true).apply()
+        )
+        if (watcher.start()) {
+            screenshotWatcher = watcher
+            isRecording = true
+            recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, true).apply()
+        } else {
+            screenshotWatcher = null
+            isRecording = false
+            recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, false).apply()
+            Toast.makeText(this, R.string.record_start_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun stopRecording(persist: Boolean) {

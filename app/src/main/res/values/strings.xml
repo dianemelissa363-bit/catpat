@@ -82,4 +82,6 @@
     <string name="record_permission_need">请先允许访问照片，才能自动记录截图</string>
     <string name="record_permission_granted">已授权访问照片</string>
     <string name="record_saved">已自动记录 %1$d 张截图</string>
+    <string name="record_start_failed">记录模式启动失败，请检查相册权限</string>
+    <string name="record_stopped">记录模式已停止：相册权限可能被撤销或系统限制</string>
 </resources>

@@ -8,6 +8,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.provider.Settings
 import android.widget.Button
@@ -36,6 +38,8 @@ class MainActivity : Activity() {
     private lateinit var todoListContainer: LinearLayout
     private lateinit var tvTodoEmpty: TextView
     private lateinit var todoTaskStore: TodoTaskStore
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = Runnable { renderTodoItems() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +85,11 @@ class MainActivity : Activity() {
         // 返回首页时，用服务的真实状态刷新（而非本地内存变量）
         refreshStatus()
         renderTodoItems()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        uiHandler.removeCallbacks(refreshRunnable)
     }
 
     private fun refreshStatus() {
@@ -140,6 +149,23 @@ class MainActivity : Activity() {
             )
             params.bottomMargin = dp(4)
             todoListContainer.addView(row, params)
+        }
+        scheduleNextRefresh(tasks)
+    }
+
+    /**
+     * Re-renders exactly when the nearest future deadline passes, so the home
+     * card turns red in place. Completed/no-due tasks are ignored.
+     */
+    private fun scheduleNextRefresh(tasks: List<TodoTask>) {
+        uiHandler.removeCallbacks(refreshRunnable)
+        val now = System.currentTimeMillis()
+        val nextDue = tasks
+            .filter { !it.done && it.dueAt != null && it.dueAt > now }
+            .minOfOrNull { it.dueAt ?: Long.MAX_VALUE }
+        if (nextDue != null) {
+            val delay = (nextDue - now).coerceAtLeast(1000L) + 1000L
+            uiHandler.postDelayed(refreshRunnable, delay)
         }
     }
 

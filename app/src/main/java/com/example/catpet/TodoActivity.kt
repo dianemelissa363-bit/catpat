@@ -6,6 +6,8 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.graphics.Paint
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -35,6 +37,8 @@ class TodoActivity : Activity() {
     private lateinit var tvEmpty: TextView
     private lateinit var store: TodoTaskStore
     private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = Runnable { renderTasks() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +55,12 @@ class TodoActivity : Activity() {
         super.onResume()
         // Re-read on every resume so overdue state and external edits refresh.
         renderTasks()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Do not keep a pending refresh running on a paused/destroyed page.
+        uiHandler.removeCallbacks(refreshRunnable)
     }
 
     private fun renderTasks() {
@@ -74,6 +84,23 @@ class TodoActivity : Activity() {
         if (done.isNotEmpty()) {
             container.addView(sectionHeader(getString(R.string.todo_section_done)))
             done.forEach { container.addView(buildTaskRow(it)) }
+        }
+        scheduleNextRefresh(tasks)
+    }
+
+    /**
+     * Re-renders exactly when the nearest future deadline passes, so overdue
+     * red appears without leaving the page. Completed/no-due tasks are ignored.
+     */
+    private fun scheduleNextRefresh(tasks: List<TodoTask>) {
+        uiHandler.removeCallbacks(refreshRunnable)
+        val now = System.currentTimeMillis()
+        val nextDue = tasks
+            .filter { !it.done && it.dueAt != null && it.dueAt > now }
+            .minOfOrNull { it.dueAt ?: Long.MAX_VALUE }
+        if (nextDue != null) {
+            val delay = (nextDue - now).coerceAtLeast(1000L) + 1000L
+            uiHandler.postDelayed(refreshRunnable, delay)
         }
     }
 
