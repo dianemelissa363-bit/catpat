@@ -9,6 +9,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Watches MediaStore for screenshots added while recording mode is on.
@@ -130,11 +133,13 @@ class ScreenshotWatcher(
                     val path = if (pathCol >= 0) cursor.getString(pathCol) ?: "" else ""
                     if (looksLikeScreenshot(name, path)) {
                         val uri = ContentUris.withAppendedId(collection, id)
+                        val addedAt = cursor.getLong(dateCol) * 1000L
                         found.add(
                             TodoItem(
                                 mediaId = id,
                                 uri = uri.toString(),
-                                addedAt = cursor.getLong(dateCol) * 1000L
+                                addedAt = addedAt,
+                                name = defaultName(addedAt)
                             )
                         )
                     }
@@ -160,5 +165,10 @@ class ScreenshotWatcher(
             haystack.contains("screen shot") ||
             haystack.contains("截屏") ||
             haystack.contains("截图")
+    }
+
+    private fun defaultName(addedAt: Long): String {
+        val format = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        return appContext.getString(R.string.screenshot_default_name, format.format(Date(addedAt)))
     }
 }

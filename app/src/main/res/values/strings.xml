@@ -121,4 +121,12 @@
     <string name="reminder_channel_name">待办提醒</string>
     <string name="reminder_channel_desc">待办截止时间提醒</string>
     <string name="reminder_notification_title">待办提醒</string>
+    <string name="screenshot_default_name">截图 %1$s</string>
+    <string name="screenshot_rename_title">修改名称</string>
+    <string name="screenshot_view">查看</string>
+    <string name="screenshot_delete_confirm">删除这条截图记录，同时删除相册中的原图。此操作不可撤销，是否继续？</string>
+    <string name="screenshot_delete_ok">已删除记录和原图</string>
+    <string name="screenshot_delete_failed">删除原图失败，记录已保留</string>
+    <string name="screenshot_delete_no_uri">该记录缺少原图关联，无法同步删除原图，记录已保留</string>
+    <string name="screenshot_delete_cancelled">已取消或未授权，记录已保留</string>
 </resources>

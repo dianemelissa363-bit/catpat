@@ -316,6 +316,52 @@ class FloatingPetService : Service() {
         }
     }
 
+    /** Docked tap: slide back to a fully visible position, then open the menu. */
+    private fun undockThenShowMenu() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        if (petW <= 0) return
+        val targetX = if (settings.dockSide == SettingsStore.DOCK_LEFT) {
+            0
+        } else {
+            dm.widthPixels - petW
+        }
+        animatePetX(params.x, targetX) {
+            settings.docked = false
+            showAiMenu()
+        }
+    }
+
+    /** Keeps the pet inside the visible screen after a drag. */
+    private fun clampPetPosition() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        val petH = if (pet.height > 0) pet.height else pet.measuredHeight
+        if (petW <= 0 || petH <= 0) return
+        params.x = params.x.coerceIn(0, (dm.widthPixels - petW).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (dm.heightPixels - petH).coerceAtLeast(0))
+        try {
+            windowManager?.updateViewLayout(pet, params)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Drag release with "snap to edge" enabled. */
+    private fun snapToNearestEdge() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        if (petW <= 0) return
+        val centerX = params.x + petW / 2
+        val targetX = if (centerX < dm.widthPixels / 2) 0 else dm.widthPixels - petW
+        animatePetX(params.x, targetX) { }
+    }
+
     private fun animatePetX(from: Int, to: Int, onEnd: () -> Unit) {
         val params = layoutParams ?: return
         val pet = petView ?: return
@@ -413,7 +459,12 @@ class FloatingPetService : Service() {
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                if (!isDragging) {
+                if (isDragging) {
+                    clampPetPosition()
+                    if (settings.snapToEdge) {
+                        snapToNearestEdge()
+                    }
+                } else {
                     onPetTapped()
                 }
                 return true
@@ -425,7 +476,7 @@ class FloatingPetService : Service() {
     // ---------- 点击互动 ----------
     private fun onPetTapped() {
         if (settings.docked) {
-            undock()
+            undockThenShowMenu()
             return
         }
         // 弹跳反馈

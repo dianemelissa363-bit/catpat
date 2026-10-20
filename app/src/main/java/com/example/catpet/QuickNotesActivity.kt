@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -21,10 +23,10 @@ import java.util.UUID
 /**
  * Quick notes page.
  *
- * Text notes live in NoteStore and support create/edit/delete. Existing
- * screenshot records keep coming from ScreenshotStore and are shown as a
- * separate section; deleting one only removes this app's record, never the
- * original gallery image.
+ * Text notes live in NoteStore and support create/edit/delete. Screenshot
+ * records live in ScreenshotStore and support renaming; deleting one asks the
+ * user first, then deletes the exact original image through MediaStore and only
+ * removes the record after the original was actually deleted.
  */
 class QuickNotesActivity : Activity() {
 
@@ -33,6 +35,7 @@ class QuickNotesActivity : Activity() {
     private lateinit var noteStore: NoteStore
     private lateinit var screenshotStore: ScreenshotStore
     private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    private var pendingDeleteItem: TodoItem? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,10 +135,15 @@ class QuickNotesActivity : Activity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f
             )
-            setOnClickListener { openImage(item.uri) }
+            setOnClickListener { showRenameDialog(item) }
         }
         content.addView(TextView(this).apply {
             text = getString(R.string.screenshot_record_label)
+            textSize = 11f
+            setTextColor(0xFF999999.toInt())
+        })
+        content.addView(TextView(this).apply {
+            text = screenshotDisplayName(item)
             textSize = 15f
             setTextColor(0xFF222222.toInt())
         })
@@ -145,8 +153,17 @@ class QuickNotesActivity : Activity() {
             setTextColor(0xFF999999.toInt())
         })
         row.addView(content)
+        row.addView(actionButton(getString(R.string.screenshot_view)) { openImage(item.uri) })
         row.addView(deleteButton { confirmDeleteScreenshot(item) })
         return row
+    }
+
+    private fun actionButton(label: String, onClick: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        textSize = 13f
+        setTextColor(0xFF3366CC.toInt())
+        setPadding(dp(8), dp(4), 0, dp(4))
+        setOnClickListener { onClick() }
     }
 
     private fun deleteButton(onClick: () -> Unit): TextView = TextView(this).apply {
@@ -160,6 +177,12 @@ class QuickNotesActivity : Activity() {
     private fun summary(body: String): String {
         val oneLine = body.replace("\n", " ").trim()
         return if (oneLine.length > 60) oneLine.take(60) + "…" else oneLine
+    }
+
+    private fun screenshotDisplayName(item: TodoItem): String {
+        if (item.name.isNotBlank()) return item.name
+        val format = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        return getString(R.string.screenshot_default_name, format.format(Date(item.addedAt)))
     }
 
     private fun showNoteDialog(note: NoteItem?) {
@@ -220,6 +243,27 @@ class QuickNotesActivity : Activity() {
             .show()
     }
 
+    private fun showRenameDialog(item: TodoItem) {
+        val input = EditText(this).apply {
+            setText(screenshotDisplayName(item))
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.screenshot_rename_title)
+            .setView(input)
+            .setPositiveButton(R.string.dialog_ok) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, R.string.title_required, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                screenshotStore.updateName(item.mediaId, name)
+                renderList()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
     private fun confirmDeleteNote(note: NoteItem) {
         AlertDialog.Builder(this)
             .setTitle(R.string.note_delete_title)
@@ -235,13 +279,125 @@ class QuickNotesActivity : Activity() {
     private fun confirmDeleteScreenshot(item: TodoItem) {
         AlertDialog.Builder(this)
             .setTitle(R.string.note_delete_title)
-            .setMessage(R.string.note_delete_confirm_screenshot)
+            .setMessage(R.string.screenshot_delete_confirm)
             .setPositiveButton(R.string.delete) { _, _ ->
-                screenshotStore.remove(item.mediaId)
-                renderList()
+                deleteOriginalThenRecord(item)
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()
+    }
+
+    /**
+     * Deletes the exact original image first, and only removes the local record
+     * when that actually succeeded. Any failure / denial keeps the record.
+     */
+    private fun deleteOriginalThenRecord(item: TodoItem) {
+        if (item.uri.isBlank()) {
+            Toast.makeText(this, R.string.screenshot_delete_no_uri, Toast.LENGTH_LONG).show()
+            return
+        }
+        val uri = Uri.parse(item.uri)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val request = MediaStore.createDeleteRequest(contentResolver, listOf(uri))
+                pendingDeleteItem = item
+                startIntentSenderForResult(
+                    request.intentSender,
+                    REQ_DELETE_ORIGINAL,
+                    null,
+                    0,
+                    0,
+                    0
+                )
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingDeleteItem = item
+            requestPermissions(
+                arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                REQ_WRITE_PERMISSION
+            )
+            return
+        }
+
+        try {
+            val rows = contentResolver.delete(uri, null, null)
+            if (rows > 0) {
+                screenshotStore.remove(item.mediaId)
+                renderList()
+                Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
+            }
+        } catch (e: SecurityException) {
+            var handled = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val recoverable = e as? android.app.RecoverableSecurityException
+                if (recoverable != null) {
+                    try {
+                        pendingDeleteItem = item
+                        startIntentSenderForResult(
+                            recoverable.userAction.actionIntent.intentSender,
+                            REQ_DELETE_ORIGINAL,
+                            null,
+                            0,
+                            0,
+                            0
+                        )
+                        handled = true
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            if (!handled) {
+                Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
+            }
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_DELETE_ORIGINAL) {
+            val item = pendingDeleteItem
+            pendingDeleteItem = null
+            if (resultCode == RESULT_OK && item != null) {
+                screenshotStore.remove(item.mediaId)
+                renderList()
+                Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, R.string.screenshot_delete_cancelled, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_WRITE_PERMISSION) {
+            val item = pendingDeleteItem
+            pendingDeleteItem = null
+            if (item != null &&
+                grantResults.isNotEmpty() &&
+                grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                deleteOriginalThenRecord(item)
+            } else {
+                Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun openImage(uri: String) {
@@ -253,4 +409,9 @@ class QuickNotesActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val REQ_DELETE_ORIGINAL = 301
+        private const val REQ_WRITE_PERMISSION = 302
+    }
 }

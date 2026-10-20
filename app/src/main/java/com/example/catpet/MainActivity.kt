@@ -133,6 +133,7 @@ class MainActivity : Activity() {
                     if (checked) {
                         val updated = task.copy(done = true, updatedAt = System.currentTimeMillis())
                         todoTaskStore.save(todoTaskStore.load().map { if (it.id == task.id) updated else it })
+                        ReminderScheduler.schedule(this@MainActivity, updated)
                         renderTodoItems()
                     }
                 }
