@@ -29,6 +29,7 @@ class FloatingPetService : Service() {
     companion object {
         const val ACTION_START = "com.example.catpet.action.START"
         const val ACTION_STOP = "com.example.catpet.action.STOP"
+        const val ACTION_TOGGLE_RECORDING = "com.example.catpet.action.TOGGLE_RECORDING"
         private const val CHANNEL_ID = "pet_service"
         private const val NOTIFICATION_ID = 1
 
@@ -37,9 +38,10 @@ class FloatingPetService : Service() {
         private const val GEMINI_PACKAGE = "com.google.android.apps.bard"
         private const val DSH_PACKAGE = "com.dsharnessmobile.shell"
 
-        // 供 MainActivity 读取的运行状态（进程内共享，Activity 重建后仍保留）
+        // 供 MainActivity / SettingsActivity 读取的运行状态
         @Volatile var isRunning = false
         @Volatile var everStarted = false
+        @Volatile var isRecording = false
 
         private const val RECORD_PREFS = "record_mode"
         private const val KEY_RECORD_ENABLED = "enabled"
@@ -51,7 +53,7 @@ class FloatingPetService : Service() {
     private var floatAnimator: ValueAnimator? = null
     private var menuView: View? = null
     private var screenshotWatcher: ScreenshotWatcher? = null
-    private var isRecording = false
+    private var dockAnimator: ValueAnimator? = null
 
     // 触摸拖动状态
     private var downX = 0f
@@ -79,6 +81,7 @@ class FloatingPetService : Service() {
                 hidePet()
                 stopSelf()
             }
+            ACTION_TOGGLE_RECORDING -> toggleRecording()
         }
         return START_NOT_STICKY
     }
@@ -172,12 +175,15 @@ class FloatingPetService : Service() {
         } catch (e: Exception) {
             // 动画失败不影响显示：视图已成功添加，isRunning 保持 true 是正确的
         }
+        view.post { restoreDockIfNeeded() }
     }
 
     private fun hidePet() {
         hideAiMenu()
         floatAnimator?.cancel()
         floatAnimator = null
+        dockAnimator?.cancel()
+        dockAnimator = null
         petView?.let { v ->
             try {
                 windowManager?.removeView(v)
@@ -277,6 +283,100 @@ class FloatingPetService : Service() {
         }
     }
 
+    // ---------- 边缘收纳 / 打开主界面 ----------
+    private val settings by lazy { SettingsStore(this) }
+
+    private fun dockToEdge() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val screenW = dm.widthPixels
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        if (petW <= 0) return
+        val side = settings.defaultDockSide
+        val strip = dp(28)
+        val targetX = if (side == SettingsStore.DOCK_LEFT) strip - petW else screenW - strip
+        animatePetX(params.x, targetX) {
+            settings.docked = true
+            settings.dockSide = side
+        }
+        hideAiMenu()
+    }
+
+    private fun undock() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        if (petW <= 0) return
+        val side = settings.dockSide
+        val targetX = if (side == SettingsStore.DOCK_LEFT) 0 else dm.widthPixels - petW
+        animatePetX(params.x, targetX) {
+            settings.docked = false
+        }
+    }
+
+    private fun animatePetX(from: Int, to: Int, onEnd: () -> Unit) {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        dockAnimator?.cancel()
+        val animator = ValueAnimator.ofInt(from, to).apply {
+            duration = 220
+            addUpdateListener { a ->
+                params.x = a.animatedValue as Int
+                try {
+                    windowManager?.updateViewLayout(pet, params)
+                } catch (_: Exception) {
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    onEnd()
+                }
+            })
+            start()
+        }
+        dockAnimator = animator
+    }
+
+    private fun restoreDockIfNeeded() {
+        if (!settings.docked) return
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        val dm = resources.displayMetrics
+        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
+        if (petW <= 0) {
+            settings.docked = false
+            return
+        }
+        val strip = dp(28)
+        params.x = if (settings.dockSide == SettingsStore.DOCK_LEFT) {
+            strip - petW
+        } else {
+            dm.widthPixels - strip
+        }
+        try {
+            windowManager?.updateViewLayout(pet, params)
+        } catch (_: Exception) {
+            settings.docked = false
+        }
+    }
+
+    private fun openMainApp() {
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+            )
+        } catch (_: Exception) {
+        }
+        hideAiMenu()
+    }
+
     // ---------- 触摸：区分点击和拖动 ----------
     private fun handleTouch(event: MotionEvent): Boolean {
         val params = layoutParams ?: return false
@@ -295,6 +395,9 @@ class FloatingPetService : Service() {
                 val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
                 if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                     isDragging = true
+                    if (settings.docked) {
+                        settings.docked = false
+                    }
                     // 开始拖动时收起菜单，避免菜单与小猫位置错位
                     hideAiMenu()
                 }
@@ -321,6 +424,10 @@ class FloatingPetService : Service() {
 
     // ---------- 点击互动 ----------
     private fun onPetTapped() {
+        if (settings.docked) {
+            undock()
+            return
+        }
         // 弹跳反馈
         petView?.let { v ->
             v.text = "\uD83D\uDE38"   // 😸
@@ -370,6 +477,8 @@ class FloatingPetService : Service() {
         ) {
             toggleRecording()
         })
+        menu.addView(makeMenuItem(getString(R.string.menu_dock)) { dockToEdge() })
+        menu.addView(makeMenuItem(getString(R.string.menu_open_app)) { openMainApp() })
 
         // 2) 实测菜单与小猫尺寸（不假设固定宽度）
         val unbound = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)

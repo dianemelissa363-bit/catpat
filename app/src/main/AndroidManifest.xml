@@ -12,6 +12,10 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- 阶段二：待办截止提醒 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Android 11+ 包可见性：让 getLaunchIntentForPackage 能识别这三个应用 -->
     <queries>
         <package android:name="com.openai.chatgpt" />
@@ -42,6 +46,27 @@
         <activity
             android:name=".TodoActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ReminderActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".FloatingPetService"

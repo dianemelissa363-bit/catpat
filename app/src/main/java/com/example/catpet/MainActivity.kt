@@ -66,11 +66,11 @@ class MainActivity : Activity() {
 
         // 六个入口：AI 工具箱/GitHub 已实现，其余仍为占位
         findViewById<Button>(R.id.btnTodo).setOnClickListener { openQuickNotes() }
-        findViewById<Button>(R.id.btnReminder).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnReminder).setOnClickListener { openReminderPage() }
         findViewById<Button>(R.id.btnAi).setOnClickListener { showAiToolsMenu() }
         findViewById<Button>(R.id.btnNotes).setOnClickListener { openTodoPage() }
         findViewById<Button>(R.id.btnGithub).setOnClickListener { openUrl("https://github.com/") }
-        findViewById<Button>(R.id.btnSettings).setOnClickListener { showComingSoon() }
+        findViewById<Button>(R.id.btnSettings).setOnClickListener { openSettings() }
 
         // Android 13+ 需要通知权限，前台服务的常驻通知才可见
         requestNotificationPermissionIfNeeded()
@@ -85,6 +85,8 @@ class MainActivity : Activity() {
         // 返回首页时，用服务的真实状态刷新（而非本地内存变量）
         refreshStatus()
         renderTodoItems()
+        // Keep alarms in sync with the current store/settings on app open.
+        ReminderScheduler.rescheduleAll(this)
     }
 
     override fun onPause() {
@@ -175,6 +177,14 @@ class MainActivity : Activity() {
 
     private fun openTodoPage() {
         startActivity(Intent(this, TodoActivity::class.java))
+    }
+
+    private fun openReminderPage() {
+        startActivity(Intent(this, ReminderActivity::class.java))
+    }
+
+    private fun openSettings() {
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     private fun dp(value: Int): Int =

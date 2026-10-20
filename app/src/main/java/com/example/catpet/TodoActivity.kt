@@ -33,9 +33,14 @@ import java.util.UUID
  */
 class TodoActivity : Activity() {
 
+    companion object {
+        const val EXTRA_HIGHLIGHT_TASK_ID = "highlight_task_id"
+    }
+
     private lateinit var container: LinearLayout
     private lateinit var tvEmpty: TextView
     private lateinit var store: TodoTaskStore
+    private var highlightTaskId: String? = null
     private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     private val uiHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = Runnable { renderTasks() }
@@ -46,6 +51,7 @@ class TodoActivity : Activity() {
         container = findViewById(R.id.tasksContainer)
         tvEmpty = findViewById(R.id.tvEmpty)
         store = TodoTaskStore(this)
+        highlightTaskId = intent?.getStringExtra(EXTRA_HIGHLIGHT_TASK_ID)
 
         findViewById<Button>(R.id.btnBack).setOnClickListener { finish() }
         findViewById<Button>(R.id.btnNewTask).setOnClickListener { showTaskDialog(null) }
@@ -121,6 +127,9 @@ class TodoActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, dp(8))
+            if (task.id == highlightTaskId) {
+                setBackgroundColor(0x33FFC107.toInt())
+            }
         }
 
         val check = CheckBox(this).apply {
@@ -129,6 +138,7 @@ class TodoActivity : Activity() {
                 if (checked != task.done) {
                     val updated = task.copy(done = checked, updatedAt = System.currentTimeMillis())
                     store.save(store.load().map { if (it.id == task.id) updated else it })
+                    ReminderScheduler.schedule(this@TodoActivity, updated)
                     renderTasks()
                 }
             }
@@ -247,32 +257,35 @@ class TodoActivity : Activity() {
                 }
                 val now = System.currentTimeMillis()
                 val all = store.load().toMutableList()
-                if (task == null) {
-                    all.add(
-                        TodoTask(
-                            id = UUID.randomUUID().toString(),
-                            title = title,
-                            description = descInput.text.toString().trim(),
-                            done = false,
-                            createdAt = now,
-                            updatedAt = now,
-                            dueAt = dueAt
-                        )
+                val savedItem: TodoTask = if (task == null) {
+                    val created = TodoTask(
+                        id = UUID.randomUUID().toString(),
+                        title = title,
+                        description = descInput.text.toString().trim(),
+                        done = false,
+                        createdAt = now,
+                        updatedAt = now,
+                        dueAt = dueAt
                     )
+                    all.add(created)
+                    created
                 } else {
+                    val edited = task.copy(
+                        title = title,
+                        description = descInput.text.toString().trim(),
+                        updatedAt = now,
+                        dueAt = dueAt
+                    )
                     val index = all.indexOfFirst { it.id == task.id }
                     if (index >= 0) {
-                        all[index] = task.copy(
-                            title = title,
-                            description = descInput.text.toString().trim(),
-                            updatedAt = now,
-                            dueAt = dueAt
-                        )
+                        all[index] = edited
                     }
+                    edited
                 }
                 if (!store.save(all)) {
                     Toast.makeText(this, R.string.save_failed, Toast.LENGTH_SHORT).show()
                 }
+                ReminderScheduler.schedule(this@TodoActivity, savedItem)
                 renderTasks()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
@@ -324,6 +337,7 @@ class TodoActivity : Activity() {
             .setMessage(R.string.todo_delete_confirm)
             .setPositiveButton(R.string.delete) { _, _ ->
                 store.save(store.load().filterNot { it.id == task.id })
+                ReminderScheduler.cancel(this@TodoActivity, task.id)
                 renderTasks()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
