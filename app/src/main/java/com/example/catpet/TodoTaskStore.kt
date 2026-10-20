@@ -11,7 +11,8 @@ data class TodoTask(
     val description: String,
     val done: Boolean,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val dueAt: Long? = null
 )
 
 /**
@@ -44,7 +45,8 @@ class TodoTaskStore(context: Context) {
                             description = json.optString(KEY_DESC, ""),
                             done = json.optBoolean(KEY_DONE, false),
                             createdAt = json.optLong(KEY_CREATED_AT, 0L),
-                            updatedAt = json.optLong(KEY_UPDATED_AT, 0L)
+                            updatedAt = json.optLong(KEY_UPDATED_AT, 0L),
+                            dueAt = json.optLong(KEY_DUE_AT, NO_DUE).takeIf { it > 0L }
                         )
                     )
                 }
@@ -65,6 +67,7 @@ class TodoTaskStore(context: Context) {
                     .put(KEY_DONE, item.done)
                     .put(KEY_CREATED_AT, item.createdAt)
                     .put(KEY_UPDATED_AT, item.updatedAt)
+                    .put(KEY_DUE_AT, item.dueAt ?: NO_DUE)
             )
         }
         preferences.edit().putString(KEY_ITEMS, array.toString()).commit()
@@ -79,6 +82,8 @@ class TodoTaskStore(context: Context) {
         private const val KEY_DONE = "done"
         private const val KEY_CREATED_AT = "createdAt"
         private const val KEY_UPDATED_AT = "updatedAt"
+        private const val KEY_DUE_AT = "dueAt"
+        private const val NO_DUE = -1L
         private val lock = Any()
     }
 }

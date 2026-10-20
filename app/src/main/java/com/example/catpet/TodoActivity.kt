@@ -2,6 +2,8 @@ package com.example.catpet
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.graphics.Paint
 import android.os.Bundle
 import android.text.InputType
@@ -14,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
@@ -23,7 +26,8 @@ import java.util.UUID
  *
  * Uses TodoTaskStore only. Unfinished tasks are listed first, finished ones
  * after; both groups are sorted by most recent update. Nothing is cleared by
- * date, so tasks survive day changes.
+ * date, so tasks survive day changes. Overdue state is computed at render time
+ * from the device clock and is never persisted.
  */
 class TodoActivity : Activity() {
 
@@ -45,6 +49,7 @@ class TodoActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        // Re-read on every resume so overdue state and external edits refresh.
         renderTasks()
     }
 
@@ -82,6 +87,9 @@ class TodoActivity : Activity() {
     }
 
     private fun buildTaskRow(task: TodoTask): LinearLayout {
+        val now = System.currentTimeMillis()
+        val overdue = !task.done && task.dueAt != null && task.dueAt < now
+
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -115,13 +123,23 @@ class TodoActivity : Activity() {
             if (task.done) {
                 paintFlags = paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
             }
+            if (overdue) {
+                setTextColor(0xFFCC0000.toInt())
+            }
         })
         if (task.description.isNotBlank()) {
             content.addView(TextView(this).apply {
                 text = task.description
                 textSize = 13f
-                setTextColor(0xFF666666.toInt())
+                setTextColor(if (overdue) 0xFFCC0000.toInt() else 0xFF666666.toInt())
                 maxLines = 2
+            })
+        }
+        if (task.dueAt != null) {
+            content.addView(TextView(this).apply {
+                text = getString(R.string.todo_due, timeFormat.format(Date(task.dueAt)))
+                textSize = 12f
+                setTextColor(if (overdue) 0xFFCC0000.toInt() else 0xFF999999.toInt())
             })
         }
         content.addView(TextView(this).apply {
@@ -142,6 +160,8 @@ class TodoActivity : Activity() {
     }
 
     private fun showTaskDialog(task: TodoTask?) {
+        var dueAt = task?.dueAt
+
         val titleInput = EditText(this).apply {
             hint = getString(R.string.todo_title_hint)
             setText(task?.title ?: "")
@@ -153,11 +173,41 @@ class TodoActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 3
         }
+        val dueLabel = TextView(this).apply {
+            text = formatDue(dueAt)
+            textSize = 13f
+            setTextColor(0xFF666666.toInt())
+        }
+        val dueBox = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(
+                dueLabel,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            addView(Button(this@TodoActivity).apply {
+                text = getString(R.string.todo_set_due)
+                setOnClickListener {
+                    pickDue(dueAt) { picked ->
+                        dueAt = picked
+                        dueLabel.text = formatDue(dueAt)
+                    }
+                }
+            })
+            addView(Button(this@TodoActivity).apply {
+                text = getString(R.string.todo_clear_due)
+                setOnClickListener {
+                    dueAt = null
+                    dueLabel.text = formatDue(dueAt)
+                }
+            })
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(8), dp(16), dp(8))
             addView(titleInput)
             addView(descInput)
+            addView(dueBox)
         }
         AlertDialog.Builder(this)
             .setTitle(if (task == null) R.string.todo_dialog_new else R.string.todo_dialog_edit)
@@ -178,7 +228,8 @@ class TodoActivity : Activity() {
                             description = descInput.text.toString().trim(),
                             done = false,
                             createdAt = now,
-                            updatedAt = now
+                            updatedAt = now,
+                            dueAt = dueAt
                         )
                     )
                 } else {
@@ -187,7 +238,8 @@ class TodoActivity : Activity() {
                         all[index] = task.copy(
                             title = title,
                             description = descInput.text.toString().trim(),
-                            updatedAt = now
+                            updatedAt = now,
+                            dueAt = dueAt
                         )
                     }
                 }
@@ -198,6 +250,45 @@ class TodoActivity : Activity() {
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .show()
+    }
+
+    private fun pickDue(current: Long?, onPicked: (Long) -> Unit) {
+        val cal = Calendar.getInstance()
+        if (current != null) {
+            cal.timeInMillis = current
+        }
+        DatePickerDialog(
+            this,
+            { _, year, month, day ->
+                cal.set(Calendar.YEAR, year)
+                cal.set(Calendar.MONTH, month)
+                cal.set(Calendar.DAY_OF_MONTH, day)
+                TimePickerDialog(
+                    this,
+                    { _, hour, minute ->
+                        cal.set(Calendar.HOUR_OF_DAY, hour)
+                        cal.set(Calendar.MINUTE, minute)
+                        cal.set(Calendar.SECOND, 0)
+                        cal.set(Calendar.MILLISECOND, 0)
+                        onPicked(cal.timeInMillis)
+                    },
+                    cal.get(Calendar.HOUR_OF_DAY),
+                    cal.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    private fun formatDue(dueAt: Long?): String {
+        return if (dueAt == null) {
+            getString(R.string.todo_due_none)
+        } else {
+            getString(R.string.todo_due, timeFormat.format(Date(dueAt)))
+        }
     }
 
     private fun confirmDelete(task: TodoTask) {

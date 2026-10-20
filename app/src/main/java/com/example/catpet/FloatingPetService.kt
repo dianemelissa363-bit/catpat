@@ -1,5 +1,6 @@
 package com.example.catpet
 
+import android.Manifest
 import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +9,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -38,6 +40,9 @@ class FloatingPetService : Service() {
         // 供 MainActivity 读取的运行状态（进程内共享，Activity 重建后仍保留）
         @Volatile var isRunning = false
         @Volatile var everStarted = false
+
+        private const val RECORD_PREFS = "record_mode"
+        private const val KEY_RECORD_ENABLED = "enabled"
     }
 
     private var windowManager: WindowManager? = null
@@ -45,6 +50,8 @@ class FloatingPetService : Service() {
     private var layoutParams: WindowManager.LayoutParams? = null
     private var floatAnimator: ValueAnimator? = null
     private var menuView: View? = null
+    private var screenshotWatcher: ScreenshotWatcher? = null
+    private var isRecording = false
 
     // 触摸拖动状态
     private var downX = 0f
@@ -65,8 +72,10 @@ class FloatingPetService : Service() {
             ACTION_START -> {
                 startForeground(NOTIFICATION_ID, buildNotification())
                 showPet()
+                restoreRecordingIfNeeded()
             }
             ACTION_STOP -> {
+                stopRecording(persist = true)
                 hidePet()
                 stopSelf()
             }
@@ -75,6 +84,9 @@ class FloatingPetService : Service() {
     }
 
     override fun onDestroy() {
+        // System reclaim must not be treated as the user turning recording off:
+        // release the observer but keep the persisted flag untouched.
+        stopRecording(persist = false)
         hidePet()
         super.onDestroy()
     }
@@ -179,6 +191,73 @@ class FloatingPetService : Service() {
         isRunning = false
     }
 
+    // ---------- 截图记录模式 ----------
+    private val recordPrefs by lazy {
+        getSharedPreferences(RECORD_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private fun hasMediaPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun restoreRecordingIfNeeded() {
+        if (isRecording) return
+        if (recordPrefs.getBoolean(KEY_RECORD_ENABLED, false) && hasMediaPermission()) {
+            startRecording()
+        }
+    }
+
+    private fun toggleRecording() {
+        if (isRecording) {
+            stopRecording(persist = true)
+            hideAiMenu()
+            return
+        }
+        if (!hasMediaPermission()) {
+            Toast.makeText(this, R.string.record_permission_need, Toast.LENGTH_LONG).show()
+            try {
+                startActivity(
+                    Intent(this, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(MainActivity.EXTRA_REQUEST_MEDIA_PERMISSION, true)
+                )
+            } catch (_: Exception) {
+                // Background activity launch may be blocked; the toast still explains it.
+            }
+            return
+        }
+        startRecording()
+        hideAiMenu()
+    }
+
+    private fun startRecording() {
+        if (isRecording) return
+        screenshotWatcher = ScreenshotWatcher(this) { count ->
+            Toast.makeText(this, getString(R.string.record_saved, count), Toast.LENGTH_SHORT).show()
+            petView?.let { v ->
+                v.animate().scaleX(1.2f).scaleY(1.2f).setDuration(150).withEndAction {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+                }.start()
+            }
+        }.also { it.start() }
+        isRecording = true
+        recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, true).apply()
+    }
+
+    private fun stopRecording(persist: Boolean) {
+        screenshotWatcher?.stop()
+        screenshotWatcher = null
+        isRecording = false
+        if (persist) {
+            recordPrefs.edit().putBoolean(KEY_RECORD_ENABLED, false).apply()
+        }
+    }
+
     // ---------- 触摸：区分点击和拖动 ----------
     private fun handleTouch(event: MotionEvent): Boolean {
         val params = layoutParams ?: return false
@@ -266,6 +345,11 @@ class FloatingPetService : Service() {
         })
         menu.addView(makeMenuItem(getString(R.string.ai_dshbox)) {
             openPetApp(DSH_PACKAGE, getString(R.string.ai_dshbox))
+        })
+        menu.addView(makeMenuItem(
+            getString(if (isRecording) R.string.record_mode_on else R.string.record_mode_off)
+        ) {
+            toggleRecording()
         })
 
         // 2) 实测菜单与小猫尺寸（不假设固定宽度）

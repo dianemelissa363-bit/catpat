@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 截图记录模式：仅在用户手动开启并授权后读取媒体库 -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <!-- Android 11+ 包可见性：让 getLaunchIntentForPackage 能识别这三个应用 -->
     <queries>
         <package android:name="com.openai.chatgpt" />

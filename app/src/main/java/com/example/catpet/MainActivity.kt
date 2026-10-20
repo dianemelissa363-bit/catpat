@@ -25,6 +25,9 @@ class MainActivity : Activity() {
         private const val GEMINI_URL = "https://gemini.google.com/"
         // DSH：本机实际包名（com.dshbox.app 未安装；失败只提示，不跳 GitHub）
         private const val DSH_PACKAGE = "com.dsharnessmobile.shell"
+
+        // 供悬浮猫菜单在缺少相册权限时拉起本页申请权限
+        const val EXTRA_REQUEST_MEDIA_PERMISSION = "extra_request_media_permission"
     }
 
     private lateinit var tvStatus: TextView
@@ -67,6 +70,10 @@ class MainActivity : Activity() {
 
         // Android 13+ 需要通知权限，前台服务的常驻通知才可见
         requestNotificationPermissionIfNeeded()
+
+        if (intent?.getBooleanExtra(EXTRA_REQUEST_MEDIA_PERMISSION, false) == true) {
+            requestMediaPermissionIfNeeded()
+        }
     }
 
     override fun onResume() {
@@ -87,6 +94,7 @@ class MainActivity : Activity() {
 
 
     private fun renderTodoItems() {
+        val now = System.currentTimeMillis()
         val tasks = todoTaskStore.load()
             .filter { !it.done }
             .sortedByDescending { it.updatedAt }
@@ -103,12 +111,29 @@ class MainActivity : Activity() {
         todoListContainer.visibility = View.VISIBLE
 
         tasks.forEach { task ->
-            val row = TextView(this).apply {
-                text = "☐ " + task.title
-                textSize = 14f
-                setPadding(dp(12), dp(8), dp(12), dp(8))
-                isFocusable = false
+            val overdue = task.dueAt != null && task.dueAt < now
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
             }
+            row.addView(android.widget.CheckBox(this).apply {
+                isChecked = false
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) {
+                        val updated = task.copy(done = true, updatedAt = System.currentTimeMillis())
+                        todoTaskStore.save(todoTaskStore.load().map { if (it.id == task.id) updated else it })
+                        renderTodoItems()
+                    }
+                }
+            })
+            row.addView(TextView(this).apply {
+                text = task.title
+                textSize = 14f
+                if (overdue) {
+                    setTextColor(0xFFCC0000.toInt())
+                }
+                setPadding(dp(8), dp(4), dp(12), dp(4))
+            })
             val params = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -209,6 +234,32 @@ class MainActivity : Activity() {
                 PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
+            }
+        }
+    }
+
+    private fun requestMediaPermissionIfNeeded() {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(permission), 101)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, R.string.record_permission_granted, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, R.string.record_permission_need, Toast.LENGTH_LONG).show()
             }
         }
     }

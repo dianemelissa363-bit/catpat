@@ -73,4 +73,13 @@
     <string name="dialog_ok">确定</string>
     <string name="dialog_cancel">取消</string>
     <string name="delete">删除</string>
+    <string name="todo_due_none">无截止时间</string>
+    <string name="todo_due">截止: %1$s</string>
+    <string name="todo_set_due">设置截止</string>
+    <string name="todo_clear_due">清除截止</string>
+    <string name="record_mode_on">记录模式:开</string>
+    <string name="record_mode_off">记录模式:关</string>
+    <string name="record_permission_need">请先允许访问照片，才能自动记录截图</string>
+    <string name="record_permission_granted">已授权访问照片</string>
+    <string name="record_saved">已自动记录 %1$d 张截图</string>
 </resources>
