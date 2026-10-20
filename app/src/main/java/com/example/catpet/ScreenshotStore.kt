@@ -31,6 +31,13 @@ class ScreenshotStore(context: Context) {
         Context.MODE_PRIVATE
     )
 
+    /**
+     * Raw JSON entries that could not be interpreted (missing/invalid mediaId).
+     * They are kept in memory and re-appended on every save so normal operations
+     * never drop them, instead of silently skipping and overwriting.
+     */
+    private var quarantined: List<Any> = emptyList()
+
     fun load(): List<TodoItem> = synchronized(lock) {
         loadLocked()
     }
@@ -78,37 +85,55 @@ class ScreenshotStore(context: Context) {
         val raw = preferences.getString(KEY_ITEMS, null) ?: return emptyList()
         return try {
             val array = JSONArray(raw)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val json = array.optJSONObject(index) ?: continue
-                    val mediaId = json.optLong(KEY_MEDIA_ID, INVALID_ID)
-                    if (mediaId < 0L) continue
-                    val storedUri = json.optString(KEY_URI, "")
-                    val uri = if (storedUri.isNotBlank()) {
-                        storedUri
-                    } else {
-                        // Old record without a URI: rebuild it from the stable id.
-                        ContentUris.withAppendedId(
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                            mediaId
-                        ).toString()
-                    }
-                    add(
-                        TodoItem(
-                            mediaId = mediaId,
-                            uri = uri,
-                            addedAt = json.optLong(KEY_ADDED_AT, 0L),
-                            name = json.optString(KEY_NAME, "")
-                        )
-                    )
+            val valid = mutableListOf<TodoItem>()
+            val invalid = mutableListOf<Any>()
+            for (index in 0 until array.length()) {
+                val element = array.opt(index)
+                val json = element as? JSONObject
+                if (json == null) {
+                    // Non-object element: keep it verbatim instead of dropping it.
+                    invalid.add(element ?: JSONObject.NULL)
+                    continue
                 }
+                val mediaId = json.optLong(KEY_MEDIA_ID, INVALID_ID)
+                if (mediaId < 0L) {
+                    // Object without a usable mediaId: quarantine, never drop.
+                    invalid.add(json)
+                    continue
+                }
+                val storedUri = json.optString(KEY_URI, "")
+                val uri = if (storedUri.isNotBlank()) {
+                    storedUri
+                } else {
+                    // Old record without a URI: rebuild it from the stable id.
+                    ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        mediaId
+                    ).toString()
+                }
+                valid.add(
+                    TodoItem(
+                        mediaId = mediaId,
+                        uri = uri,
+                        addedAt = json.optLong(KEY_ADDED_AT, 0L),
+                        name = json.optString(KEY_NAME, "")
+                    )
+                )
             }
+            quarantined = invalid
+            if (invalid.isNotEmpty()) {
+                // Keep the original JSON for recovery; valid records stay intact.
+                preferences.edit().putString(KEY_CORRUPT_BACKUP, raw).apply()
+            }
+            valid
         } catch (_: Exception) {
-            // Preserve the malformed value for diagnosis, then recover to an empty store.
+            // Whole-array parse failure: preserve the raw value, then recover to
+            // an empty in-memory list. Other keys are untouched.
             preferences.edit()
                 .putString(KEY_CORRUPT_BACKUP, raw)
                 .putString(KEY_ITEMS, EMPTY_ARRAY)
                 .commit()
+            quarantined = emptyList()
             emptyList()
         }
     }
@@ -124,6 +149,8 @@ class ScreenshotStore(context: Context) {
                     .put(KEY_NAME, item.name)
             )
         }
+        // Re-append quarantined entries: an add/rename/delete must not lose them.
+        quarantined.forEach { array.put(it) }
         return preferences.edit().putString(KEY_ITEMS, array.toString()).commit()
     }
 

@@ -129,4 +129,5 @@
     <string name="screenshot_delete_failed">删除原图失败，记录已保留</string>
     <string name="screenshot_delete_no_uri">该记录缺少原图关联，无法同步删除原图，记录已保留</string>
     <string name="screenshot_delete_cancelled">已取消或未授权，记录已保留</string>
+    <string name="screenshot_delete_record_failed">原图已删除，但记录保存失败，请重试</string>
 </resources>

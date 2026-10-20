@@ -331,9 +331,7 @@ class QuickNotesActivity : Activity() {
         try {
             val rows = contentResolver.delete(uri, null, null)
             if (rows > 0) {
-                screenshotStore.remove(item.mediaId)
-                renderList()
-                Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
+                finishDelete(item)
             } else {
                 Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
             }
@@ -371,9 +369,7 @@ class QuickNotesActivity : Activity() {
             val item = pendingDeleteItem
             pendingDeleteItem = null
             if (resultCode == RESULT_OK && item != null) {
-                screenshotStore.remove(item.mediaId)
-                renderList()
-                Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
+                finishDelete(item)
             } else {
                 Toast.makeText(this, R.string.screenshot_delete_cancelled, Toast.LENGTH_LONG).show()
             }
@@ -397,6 +393,25 @@ class QuickNotesActivity : Activity() {
             } else {
                 Toast.makeText(this, R.string.screenshot_delete_failed, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    /**
+     * Called only after the system confirmed the original image deletion.
+     * Removes the record and reports truthfully if the local save failed.
+     */
+    private fun finishDelete(item: TodoItem) {
+        val removed = screenshotStore.remove(item.mediaId)
+        renderList()
+        if (removed) {
+            Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val stillPresent = screenshotStore.load().any { it.mediaId == item.mediaId }
+        if (stillPresent) {
+            Toast.makeText(this, R.string.screenshot_delete_record_failed, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, R.string.screenshot_delete_ok, Toast.LENGTH_SHORT).show()
         }
     }
 
