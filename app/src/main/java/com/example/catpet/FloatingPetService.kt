@@ -18,7 +18,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -479,23 +478,62 @@ class FloatingPetService : Service() {
             undock()
             return
         }
-        // 弹跳反馈
-        petView?.let { v ->
-            v.animate()
-                .scaleX(1.3f)
-                .scaleY(1.3f)
-                .setDuration(150)
-                .setInterpolator(OvershootInterpolator())
-                .withEndAction {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(200).start()
-                }
-                .start()
-        }
+        // 弹跳反馈（放大整个窗口，避免被窗口边界裁剪）
+        playBounce()
         // 切换 AI 菜单：已展开则收起，否则弹出
         if (menuView != null) {
             hideAiMenu()
         } else {
             showAiMenu()
+        }
+    }
+
+    /**
+     * Grow the window itself (not only the view transform) while bouncing, so
+     * the enlarged cat always stays inside the window surface and is never
+     * clipped. The window is restored to WRAP_CONTENT afterwards, so the
+     * normal size, drag and dock coordinates are unaffected.
+     */
+    private fun playBounce() {
+        val params = layoutParams ?: return
+        val pet = petView ?: return
+        if (params.width != WindowManager.LayoutParams.WRAP_CONTENT) return
+        val baseW = pet.width
+        val baseH = pet.height
+        if (baseW <= 0 || baseH <= 0) return
+        val baseX = params.x
+        val baseY = params.y
+        val growW = (baseW * 0.3f).toInt()
+        val growH = (baseH * 0.3f).toInt()
+
+        ValueAnimator.ofFloat(0f, 1f, 0f).apply {
+            duration = 360
+            addUpdateListener { a ->
+                val f = a.animatedValue as Float
+                val dw = (growW * f).toInt()
+                val dh = (growH * f).toInt()
+                params.width = baseW + dw
+                params.height = baseH + dh
+                params.x = baseX - dw / 2
+                params.y = baseY - dh / 2
+                try {
+                    windowManager?.updateViewLayout(pet, params)
+                } catch (_: Exception) {
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                    params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                    params.x = baseX
+                    params.y = baseY
+                    try {
+                        windowManager?.updateViewLayout(pet, params)
+                    } catch (_: Exception) {
+                    }
+                }
+            })
+            start()
         }
     }
 
