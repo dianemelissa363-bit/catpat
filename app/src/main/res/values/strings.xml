@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">桌面小猫</string>
+    <string name="app_name">P-AI</string>
 
     <string name="btn_start">启动小猫</string>
     <string name="btn_stop">隐藏小猫</string>
@@ -13,7 +13,7 @@
 
     <string name="toast_grant_overlay">请在系统设置里允许「显示在其他应用上层」</string>
 
-    <string name="notification_title">桌面小猫</string>
+    <string name="notification_title">P-AI</string>
     <string name="notification_text">小猫正在桌面上陪你</string>
     <string name="notification_channel">小猫服务</string>
 
