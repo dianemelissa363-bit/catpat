@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var btnStopService: Button
     private lateinit var todoListContainer: LinearLayout
     private lateinit var tvTodoEmpty: TextView
     private lateinit var todoTaskStore: TodoTaskStore
@@ -48,6 +49,7 @@ class MainActivity : Activity() {
         tvStatus = findViewById(R.id.tvStatus)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        btnStopService = findViewById(R.id.btnStopService)
         todoListContainer = findViewById(R.id.todoListContainer)
         tvTodoEmpty = findViewById(R.id.tvTodoEmpty)
         todoTaskStore = TodoTaskStore(this)
@@ -61,7 +63,11 @@ class MainActivity : Activity() {
         }
 
         btnStop.setOnClickListener {
-            stopPet()
+            hidePetWindow()
+        }
+
+        btnStopService.setOnClickListener {
+            stopPetService()
         }
 
         // 六个入口：AI 工具箱/GitHub 已实现，其余仍为占位
@@ -97,7 +103,8 @@ class MainActivity : Activity() {
     private fun refreshStatus() {
         tvStatus.text = when {
             !canDrawOverlays() -> getString(R.string.status_no_permission)  // 没有悬浮窗权限
-            FloatingPetService.isRunning -> getString(R.string.status_running)  // 小猫正在运行
+            FloatingPetService.isVisible -> getString(R.string.status_running)  // 小猫正在运行
+            FloatingPetService.isRunning -> getString(R.string.status_hidden)  // 已隐藏，服务仍在运行
             FloatingPetService.everStarted -> getString(R.string.status_idle)  // 小猫已经停止
             else -> getString(R.string.status_ready)  // 已授权且未启动
         }
@@ -313,7 +320,14 @@ class MainActivity : Activity() {
         tvStatus.setText(R.string.status_running)
     }
 
-    private fun stopPet() {
+    private fun hidePetWindow() {
+        val intent = Intent(this, FloatingPetService::class.java)
+            .setAction(FloatingPetService.ACTION_HIDE)
+        startService(intent)
+        tvStatus.setText(R.string.status_hidden)
+    }
+
+    private fun stopPetService() {
         val intent = Intent(this, FloatingPetService::class.java)
             .setAction(FloatingPetService.ACTION_STOP)
         startService(intent)

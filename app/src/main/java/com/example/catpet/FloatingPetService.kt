@@ -29,6 +29,7 @@ class FloatingPetService : Service() {
     companion object {
         const val ACTION_START = "com.example.catpet.action.START"
         const val ACTION_STOP = "com.example.catpet.action.STOP"
+        const val ACTION_HIDE = "com.example.catpet.action.HIDE"
         const val ACTION_TOGGLE_RECORDING = "com.example.catpet.action.TOGGLE_RECORDING"
         private const val CHANNEL_ID = "pet_service"
         private const val NOTIFICATION_ID = 1
@@ -40,6 +41,7 @@ class FloatingPetService : Service() {
 
         // 供 MainActivity / SettingsActivity 读取的运行状态
         @Volatile var isRunning = false
+        @Volatile var isVisible = false
         @Volatile var everStarted = false
         @Volatile var isRecording = false
 
@@ -76,9 +78,15 @@ class FloatingPetService : Service() {
                 showPet()
                 restoreRecordingIfNeeded()
             }
+            ACTION_HIDE -> {
+                // Only hide the window; the foreground service, the screenshot
+                // watcher and the recording mode keep running untouched.
+                hidePet()
+            }
             ACTION_STOP -> {
                 stopRecording(persist = true)
                 hidePet()
+                isRunning = false
                 stopSelf()
             }
             ACTION_TOGGLE_RECORDING -> toggleRecording()
@@ -91,6 +99,7 @@ class FloatingPetService : Service() {
         // release the observer but keep the persisted flag untouched.
         stopRecording(persist = false)
         hidePet()
+        isRunning = false
         super.onDestroy()
     }
 
@@ -173,6 +182,7 @@ class FloatingPetService : Service() {
         petView = view
         layoutParams = params
         isRunning = true
+        isVisible = true
         everStarted = true
 
         try {
@@ -199,7 +209,7 @@ class FloatingPetService : Service() {
         petView = null
         layoutParams = null
         windowManager = null
-        isRunning = false
+        isVisible = false
     }
 
     // ---------- 截图记录模式 ----------
@@ -291,36 +301,65 @@ class FloatingPetService : Service() {
     // ---------- 边缘收纳 / 打开主界面 ----------
     private val settings by lazy { SettingsStore(this) }
 
+    /** null = full cat; DOCK_LEFT / DOCK_RIGHT = the peeking head image. */
+    private fun applyPetImage(side: String?) {
+        val pet = petView ?: return
+        val res = when (side) {
+            SettingsStore.DOCK_LEFT -> R.drawable.pet_dock_left
+            SettingsStore.DOCK_RIGHT -> R.drawable.pet_dock_right
+            else -> R.drawable.pet_cat
+        }
+        pet.setImageResource(res)
+    }
+
     /**
-     * Slides the pet window partly outside the given edge. With
-     * FLAG_LAYOUT_NO_LIMITS the negative/oversized x is honoured, so only a
-     * small strip stays on screen and remains touchable.
+     * Docked state: swap to the peeking head image and pin that image directly
+     * to the edge, so the head itself stays fully visible and easy to tap.
      */
     private fun dockToSide(side: String) {
         val params = layoutParams ?: return
         val pet = petView ?: return
-        val dm = resources.displayMetrics
-        val screenW = dm.widthPixels
-        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
-        if (petW <= 0) return
-        val strip = dp(28)
-        val targetX = if (side == SettingsStore.DOCK_LEFT) strip - petW else screenW - strip
-        animatePetX(params.x, targetX) {
-            settings.docked = true
-            settings.dockSide = side
+        applyPetImage(side)
+        pet.post {
+            val w = if (pet.width > 0) pet.width else pet.measuredWidth
+            if (w <= 0) return@post
+            params.width = WindowManager.LayoutParams.WRAP_CONTENT
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+            params.x = if (side == SettingsStore.DOCK_LEFT) {
+                0
+            } else {
+                resources.displayMetrics.widthPixels - w
+            }
+            try {
+                windowManager?.updateViewLayout(pet, params)
+                settings.docked = true
+                settings.dockSide = side
+            } catch (_: Exception) {
+            }
         }
     }
 
+    /** Restore the full cat and put it fully on screen next to the same edge. */
     private fun undock() {
         val params = layoutParams ?: return
         val pet = petView ?: return
-        val dm = resources.displayMetrics
-        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
-        if (petW <= 0) return
         val side = settings.dockSide
-        val targetX = if (side == SettingsStore.DOCK_LEFT) 0 else dm.widthPixels - petW
-        animatePetX(params.x, targetX) {
-            settings.docked = false
+        applyPetImage(null)
+        pet.post {
+            val w = if (pet.width > 0) pet.width else pet.measuredWidth
+            if (w <= 0) return@post
+            params.width = WindowManager.LayoutParams.WRAP_CONTENT
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+            params.x = if (side == SettingsStore.DOCK_LEFT) {
+                0
+            } else {
+                resources.displayMetrics.widthPixels - w
+            }
+            try {
+                windowManager?.updateViewLayout(pet, params)
+                settings.docked = false
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -385,25 +424,7 @@ class FloatingPetService : Service() {
 
     private fun restoreDockIfNeeded() {
         if (!settings.docked) return
-        val params = layoutParams ?: return
-        val pet = petView ?: return
-        val dm = resources.displayMetrics
-        val petW = if (pet.width > 0) pet.width else pet.measuredWidth
-        if (petW <= 0) {
-            settings.docked = false
-            return
-        }
-        val strip = dp(28)
-        params.x = if (settings.dockSide == SettingsStore.DOCK_LEFT) {
-            strip - petW
-        } else {
-            dm.widthPixels - strip
-        }
-        try {
-            windowManager?.updateViewLayout(pet, params)
-        } catch (_: Exception) {
-            settings.docked = false
-        }
+        dockToSide(settings.dockSide)
     }
 
     private fun openMainApp() {
@@ -441,6 +462,7 @@ class FloatingPetService : Service() {
                     isDragging = true
                     if (settings.docked) {
                         settings.docked = false
+                        applyPetImage(null)
                     }
                     // 开始拖动时收起菜单，避免菜单与小猫位置错位
                     hideAiMenu()

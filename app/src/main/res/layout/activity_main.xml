@@ -124,6 +124,13 @@
                     android:layout_weight="1"
                     android:text="@string/btn_stop" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/btnStopService"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_stop_service" />
         </LinearLayout>
 
         <!-- 六入口：第 1 行 -->
