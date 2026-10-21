@@ -19,6 +19,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.OvershootInterpolator
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -48,7 +49,7 @@ class FloatingPetService : Service() {
     }
 
     private var windowManager: WindowManager? = null
-    private var petView: TextView? = null
+    private var petView: ImageView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var floatAnimator: ValueAnimator? = null
     private var menuView: View? = null
@@ -145,9 +146,10 @@ class FloatingPetService : Service() {
             y = 300
         }
 
-        val view = TextView(this).apply {
-            text = "\uD83D\uDC31"   // 🐱
-            textSize = 72f
+        val view = ImageView(this).apply {
+            setImageResource(R.drawable.pet_cat)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = getString(R.string.app_name)
             setOnTouchListener { _, event -> handleTouch(event) }
         }
 
@@ -479,7 +481,6 @@ class FloatingPetService : Service() {
         }
         // 弹跳反馈
         petView?.let { v ->
-            v.text = "\uD83D\uDE38"   // 😸
             v.animate()
                 .scaleX(1.3f)
                 .scaleY(1.3f)
@@ -487,7 +488,6 @@ class FloatingPetService : Service() {
                 .setInterpolator(OvershootInterpolator())
                 .withEndAction {
                     v.animate().scaleX(1f).scaleY(1f).setDuration(200).start()
-                    v.text = "\uD83D\uDC31"   // 🐱
                 }
                 .start()
         }
