@@ -10,6 +10,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -63,6 +64,7 @@ class FloatingPetService : Service() {
     private var startX = 0
     private var startY = 0
     private var isDragging = false
+    private var isBouncing = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -301,65 +303,116 @@ class FloatingPetService : Service() {
     // ---------- 边缘收纳 / 打开主界面 ----------
     private val settings by lazy { SettingsStore(this) }
 
-    /** null = full cat; DOCK_LEFT / DOCK_RIGHT = the peeking head image. */
-    private fun applyPetImage(side: String?) {
+    /** Intrinsic pixel size of a pet drawable, or null when unavailable. */
+    private fun petImageSize(resId: Int): Pair<Int, Int>? {
+        val d = resources.getDrawable(resId, theme) ?: return null
+        val w = d.intrinsicWidth
+        val h = d.intrinsicHeight
+        if (w <= 0 || h <= 0) return null
+        return w to h
+    }
+
+    /**
+     * One-pass placement: decide the final image, its exact window size and the
+     * final edge coordinate together, then commit with a single update. This
+     * removes the old "swap image at the old x, fix x in a later post" jump.
+     */
+    private fun placePet(side: String?) {
+        val params = layoutParams ?: return
         val pet = petView ?: return
         val res = when (side) {
             SettingsStore.DOCK_LEFT -> R.drawable.pet_dock_left
             SettingsStore.DOCK_RIGHT -> R.drawable.pet_dock_right
             else -> R.drawable.pet_cat
         }
+        val size = petImageSize(res) ?: return
+        val w = size.first
+        val h = size.second
+        val dm = resources.displayMetrics
         pet.setImageResource(res)
-    }
-
-    /**
-     * Docked state: swap to the peeking head image and pin that image directly
-     * to the edge, so the head itself stays fully visible and easy to tap.
-     */
-    private fun dockToSide(side: String) {
-        val params = layoutParams ?: return
-        val pet = petView ?: return
-        applyPetImage(side)
-        pet.post {
-            val w = if (pet.width > 0) pet.width else pet.measuredWidth
-            if (w <= 0) return@post
-            params.width = WindowManager.LayoutParams.WRAP_CONTENT
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT
-            params.x = if (side == SettingsStore.DOCK_LEFT) {
-                0
-            } else {
-                resources.displayMetrics.widthPixels - w
-            }
-            try {
-                windowManager?.updateViewLayout(pet, params)
-                settings.docked = true
-                settings.dockSide = side
-            } catch (_: Exception) {
-            }
+        params.width = w
+        params.height = h
+        params.x = if (side == SettingsStore.DOCK_LEFT) 0 else dm.widthPixels - w
+        params.y = params.y.coerceIn(0, (dm.heightPixels - h).coerceAtLeast(0))
+        try {
+            windowManager?.updateViewLayout(pet, params)
+            settings.docked = side != null
+            if (side != null) settings.dockSide = side
+        } catch (_: Exception) {
+            reAddPet()
         }
     }
 
-    /** Restore the full cat and put it fully on screen next to the same edge. */
-    private fun undock() {
+    /** Docked state: peeking head, pinned to the edge in the current rotation. */
+    private fun dockToSide(side: String) = placePet(side)
+
+    /** Restore the full cat, fully on screen next to the same edge. */
+    private fun undock() = placePet(null)
+
+    /** Re-attach the overlay after a failed update (stale token / detached view). */
+    private fun reAddPet() {
+        val pet = petView ?: return
+        val wm = windowManager ?: return
+        val params = layoutParams ?: return
+        try {
+            wm.removeView(pet)
+        } catch (_: Exception) {
+        }
+        try {
+            wm.addView(pet, params)
+            isVisible = true
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Restore the full cat image/size at the start of a drag; the drag itself
+     * keeps owning x/y so there is no jump.
+     */
+    private fun restoreCatForDrag() {
         val params = layoutParams ?: return
         val pet = petView ?: return
-        val side = settings.dockSide
-        applyPetImage(null)
-        pet.post {
-            val w = if (pet.width > 0) pet.width else pet.measuredWidth
-            if (w <= 0) return@post
-            params.width = WindowManager.LayoutParams.WRAP_CONTENT
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT
-            params.x = if (side == SettingsStore.DOCK_LEFT) {
-                0
-            } else {
-                resources.displayMetrics.widthPixels - w
-            }
-            try {
-                windowManager?.updateViewLayout(pet, params)
-                settings.docked = false
-            } catch (_: Exception) {
-            }
+        val size = petImageSize(R.drawable.pet_cat) ?: return
+        pet.setImageResource(R.drawable.pet_cat)
+        params.width = size.first
+        params.height = size.second
+        params.y = params.y.coerceIn(
+            0,
+            (resources.displayMetrics.heightPixels - size.second).coerceAtLeast(0)
+        )
+        try {
+            windowManager?.updateViewLayout(pet, params)
+        } catch (_: Exception) {
+            reAddPet()
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Rotation changes the display size; the stored x/y may now be off the
+        // new screen, which is exactly what made the pet "disappear".
+        val pet = petView ?: return
+        pet.post { relayoutForConfiguration() }
+    }
+
+    private fun relayoutForConfiguration() {
+        val pet = petView ?: return
+        val params = layoutParams ?: return
+        val dm = resources.displayMetrics
+        if (settings.docked) {
+            placePet(settings.dockSide)
+            return
+        }
+        val w = if (params.width > 0) params.width else pet.width
+        val h = if (params.height > 0) params.height else pet.height
+        if (w <= 0 || h <= 0) return
+        params.x = params.x.coerceIn(0, (dm.widthPixels - w).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (dm.heightPixels - h).coerceAtLeast(0))
+        try {
+            windowManager?.updateViewLayout(pet, params)
+            isVisible = true
+        } catch (_: Exception) {
+            reAddPet()
         }
     }
 
@@ -462,7 +515,7 @@ class FloatingPetService : Service() {
                     isDragging = true
                     if (settings.docked) {
                         settings.docked = false
-                        applyPetImage(null)
+                        restoreCatForDrag()
                     }
                     // 开始拖动时收起菜单，避免菜单与小猫位置错位
                     hideAiMenu()
@@ -519,14 +572,15 @@ class FloatingPetService : Service() {
     private fun playBounce() {
         val params = layoutParams ?: return
         val pet = petView ?: return
-        if (params.width != WindowManager.LayoutParams.WRAP_CONTENT) return
-        val baseW = pet.width
-        val baseH = pet.height
+        if (isBouncing) return
+        val baseW = if (params.width > 0) params.width else pet.width
+        val baseH = if (params.height > 0) params.height else pet.height
         if (baseW <= 0 || baseH <= 0) return
         val baseX = params.x
         val baseY = params.y
         val growW = (baseW * 0.3f).toInt()
         val growH = (baseH * 0.3f).toInt()
+        isBouncing = true
 
         ValueAnimator.ofFloat(0f, 1f, 0f).apply {
             duration = 360
@@ -545,14 +599,15 @@ class FloatingPetService : Service() {
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    params.width = WindowManager.LayoutParams.WRAP_CONTENT
-                    params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                    params.width = baseW
+                    params.height = baseH
                     params.x = baseX
                     params.y = baseY
                     try {
                         windowManager?.updateViewLayout(pet, params)
                     } catch (_: Exception) {
                     }
+                    isBouncing = false
                 }
             })
             start()
